@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#183d32">
+  <title>算术麻将 · 开发者牌局</title>
+  <link rel="icon" href="/tiles/app_icon.png">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="算术麻将开发者牌局"><img src="/tiles/app_icon.png" alt=""><span>算术麻将<small id="mode-label">开发者牌局</small></span></a>
+    <div class="header-meta"><span class="connection-dot" id="connection-dot"></span><span id="round-label">第 1 次试牌</span><span class="quiet-tag" id="clock-label">无计时</span></div>
+    <div class="header-tools">
+      <label class="scene-select"><svg class="icon"><use href="/assets/icons.svg#flask"></use></svg><select id="scene-select" aria-label="试牌场景"></select></label>
+      <button class="icon-button" id="restart-button" title="开局设置" aria-label="开局设置"><svg class="icon"><use href="/assets/icons.svg#refresh"></use></svg></button>
+      <button class="icon-button mobile-only" id="developer-toggle" title="打开牌堆" aria-label="打开牌堆"><svg class="icon"><use href="/assets/icons.svg#layers"></use></svg></button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <main class="play-area">
+      <section class="table-surface" aria-label="开发者牌桌">
+        <div class="table-topline"><span class="table-mode" id="table-mode">DEVELOPER <span>四人开发者局</span></span><span id="wall-counter">牌山 —</span></div>
+        <div id="opponent-seats" class="opponent-seats" hidden></div>
+        <div class="table-center">
+          <div class="stack-area"><div class="deck-stack"><span></span><span></span><span></span></div><span class="zone-caption">牌堆</span></div>
+          <div class="incoming-area"><div id="incoming-tile" class="incoming-slot"></div><span class="zone-caption" id="incoming-caption">等待来牌</span></div>
+          <div class="center-status"><span class="stage-dot"></span><span id="stage-label">准备中</span><span id="timer" class="timer" hidden></span></div>
+        </div>
+        <div class="discard-zone"><div class="zone-heading"><span id="discard-label">弃牌</span><span id="discard-count">0 张</span></div><div id="discard-river" class="discard-river"></div></div>
+        <div class="table-watermark" aria-hidden="true">算术麻将</div>
+      </section>
+
+      <section class="hand-surface" aria-label="我的手牌">
+        <div class="hand-topline"><div class="hand-title"><h1>我的手牌</h1><span id="hand-count">13 张</span></div><div class="hand-tools">
+          <div class="segmented" role="group" aria-label="牌的显示方式"><button id="face-mode" class="active" title="显示原始牌面">牌面</button><button id="number-mode" title="显示算术数值">数字</button></div>
+          <button class="tool-button" id="group-mode" title="选择要分组的牌；也可右键选择"><svg class="icon"><use href="/assets/icons.svg#group"></use></svg><span>组牌</span></button>
+          <button class="icon-button" id="edit-hand" title="编辑手牌" aria-label="编辑手牌"><svg class="icon"><use href="/assets/icons.svg#pencil"></use></svg></button>
+        </div></div>
+        <div id="hand-scroll" class="hand-scroll"><div id="hand-regions" class="hand-regions"></div></div>
+        <div class="selection-bar" id="selection-bar" hidden><span id="selection-count"></span><button class="small-button" id="confirm-group"><svg class="icon"><use href="/assets/icons.svg#plus"></use></svg>分为一组</button><button class="icon-button" id="clear-selection" title="取消选牌" aria-label="取消选牌"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div>
+        <div class="action-strip"><div id="action-status" class="action-status"></div><div id="actions" class="actions"></div></div>
+        <div id="chi-options" class="chi-options"></div>
+      </section>
+      <footer class="activity-line"><span class="activity-caption">最近操作</span><span id="activity-text">等待第一张来牌</span><button class="text-button" id="show-result" hidden>查看结算 <span aria-hidden="true">↗</span></button></footer>
+      <section class="flow-monitor" id="flow-monitor" aria-label="阶段记录" hidden><div id="phase-steps" class="phase-steps"></div><div id="phase-history" class="phase-history"></div></section>
+    </main>
+
+    <aside class="developer-panel" id="developer-panel" aria-label="开发者牌堆">
+      <div class="developer-heading"><div><span class="eyebrow">DEVELOPER</span><h2>牌堆工作台</h2></div><button class="icon-button mobile-only" id="developer-close" title="关闭牌堆" aria-label="关闭牌堆"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button><span class="dev-mark">DEV</span></div>
+      <div class="next-tile-section"><div><span class="panel-label">下一张</span><div id="next-tile" class="next-tile"></div></div><div class="next-tile-meta"><span id="deck-remaining">—</span><small>张未翻开</small><button class="text-button" id="edit-wall"><svg class="icon"><use href="/assets/icons.svg#braces"></use></svg>编辑牌堆</button></div></div>
+      <div class="deck-toolbar"><div><span class="panel-label">完整顺序</span><span class="order-label">下一张在最前</span></div><div class="deck-tools"><button class="icon-button" id="deck-to-front" title="移到牌堆最前" aria-label="移到牌堆最前"><svg class="icon"><use href="/assets/icons.svg#to-front"></use></svg></button><button class="icon-button" id="deck-delete" title="移除选中的牌" aria-label="移除选中的牌"><svg class="icon"><use href="/assets/icons.svg#trash"></use></svg></button></div></div>
+      <div id="deck-grid" class="deck-grid" aria-label="按摸牌顺序排列的牌堆"></div>
+      <div class="developer-bottom"><span id="deck-selection">未选中牌</span><button class="icon-button" id="deck-add" title="向牌堆添加牌" aria-label="向牌堆添加牌"><svg class="icon"><use href="/assets/icons.svg#plus"></use></svg></button></div>
+    </aside>
+  </div>
+
+  <dialog id="editor-dialog" class="editor-dialog"><form id="editor-form"><div class="dialog-heading"><div><span class="eyebrow">DEVELOPER</span><h2 id="editor-title">编辑牌堆</h2></div><button type="button" class="icon-button" data-close="editor-dialog" title="关闭" aria-label="关闭"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div><label class="editor-label" for="tile-input" id="editor-order">下一张在最前</label><textarea id="tile-input" spellcheck="false" aria-label="牌值 JSON 数组"></textarea><div id="tile-palette" class="tile-palette"></div><p id="editor-error" class="inline-error" role="alert"></p><div class="dialog-footer"><button type="button" class="secondary-button" data-close="editor-dialog">取消</button><button type="submit" class="primary-button">应用修改 <svg class="icon"><use href="/assets/icons.svg#check"></use></svg></button></div></form></dialog>
+
+  <dialog id="setup-dialog" class="setup-dialog" aria-labelledby="setup-title">
+    <form id="setup-form">
+      <div class="dialog-heading"><div><span class="eyebrow">DEVELOPER GAME</span><h2 id="setup-title">开局设置</h2></div><button type="button" class="icon-button" data-close="setup-dialog" title="返回牌桌" aria-label="关闭开局设置"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div>
+      <div class="mode-picker" role="radiogroup" aria-label="游戏模式"><label><input type="radio" name="game-mode" value="four" checked>四人开发者局</label><label><input type="radio" name="game-mode" value="solo">单人试牌台</label></div>
+      <label class="setup-scene-row" id="setup-scene-row" hidden>试牌场景<select id="setup-scene" aria-label="开局试牌场景"></select></label>
+      <div class="timer-settings-heading"><h3>操作计时</h3><label class="switch-label"><input type="checkbox" id="timers-enabled" checked>启用计时</label></div>
+      <div id="timer-settings" class="timer-settings"></div>
+      <div class="setup-status" id="setup-status">开局前可调整</div>
+      <p class="inline-error" id="setup-error" role="alert"></p>
+      <div class="dialog-footer"><button type="button" class="secondary-button" id="reset-game" hidden>结束本局并重新配置</button><button type="button" class="secondary-button" data-close="setup-dialog">返回牌桌</button><button type="submit" class="primary-button" id="start-game">开始游戏 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></button></div>
+    </form>
+  </dialog>
+
+  <dialog id="result-dialog" class="result-dialog"><div class="dialog-heading"><div><span class="eyebrow">ROUND RESULT</span><h2 id="result-title">胡牌</h2></div><button class="icon-button" data-close="result-dialog" title="返回牌桌" aria-label="返回牌桌"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div><div id="result-content"></div><div class="dialog-footer"><button class="secondary-button" data-close="result-dialog">查看牌桌</button><button class="primary-button" id="next-round-button">下一局 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></button></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>
