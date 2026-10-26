@@ -175,6 +175,7 @@ input[type=checkbox], input[type=radio] { accent-color: #37644a; width: 15px; he
 .setup-scene-row select { padding: 6px 10px; border: 1px solid #d7e0cb; border-radius: 4px; background: #f9fbf5; color: #4b6540; }
 .setup-status { font-size: 11px; color: #9b8359; margin-top: 17px; }
 .setup-dialog .dialog-footer { flex-wrap: wrap; }
+.recovery-dialog .dialog-footer { flex-wrap: wrap; }
 .activity-line .text-button { margin-left: auto; flex-shrink: 0; }
 .text-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0; background: transparent; color: #52714f; font-size: 11px; min-height: 25px; }
 .text-button .icon { width: 14px; height: 14px; flex-basis: 14px; }

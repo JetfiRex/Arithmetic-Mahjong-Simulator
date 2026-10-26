@@ -1,0 +1,50 @@
+<section id="local-entry" class="local-entry" aria-labelledby="entry-title" hidden>
+  <div class="entry-art"><img src="/tiles/app_icon.png" alt="算术麻将"><h1 id="entry-title">本地房间</h1></div>
+  <form id="entry-form">
+    <div class="segmented entry-tabs" role="group" aria-label="进入房间"><button type="button" id="create-tab" class="active">创建房间</button><button type="button" id="join-tab">加入房间</button></div>
+    <label>用户名<input id="local-username" maxlength="24" required autocomplete="off"></label>
+    <label>房间名<input id="local-room-name" maxlength="32" required autocomplete="off"></label>
+    <label>房间密码<input id="local-password" type="password" maxlength="128" required autocomplete="off"></label>
+    <p id="entry-error" class="inline-error" role="alert"></p>
+    <button type="submit" class="primary-button" id="entry-submit">创建房间</button>
+  </form>
+</section>
+<dialog id="local-settings" class="setup-dialog" aria-labelledby="local-settings-title">
+  <form id="local-settings-form">
+    <div class="dialog-heading"><h2 id="local-settings-title">房主设置</h2><button type="button" class="icon-button" data-close="local-settings" aria-label="关闭房主设置" title="关闭"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div>
+    <section id="bot-settings" class="bot-settings" hidden>
+      <h3>Bot 对手</h3>
+      <p id="bot-model-status" class="setup-status"></p>
+      <div id="bot-model-list" class="bot-model-list"></div>
+      <div id="bot-profile-list"></div>
+      <button type="button" id="bot-add" class="secondary-button" title="添加一位 Bot"><svg class="icon"><use href="/assets/icons.svg#plus"></use></svg>添加 Bot</button>
+    </section>
+    <div id="local-seats" class="local-seats"></div>
+    <div class="timer-settings-heading"><h3>操作计时</h3><label class="switch-label"><input type="checkbox" id="local-timers-enabled" checked>启用计时</label></div>
+    <div id="local-timer-settings" class="timer-settings"></div>
+    <label class="local-multiple"><input id="local-multiple-hu" type="checkbox" checked>允许一炮多响</label>
+    <p id="local-settings-status" class="setup-status"></p>
+    <p id="local-settings-error" class="inline-error" role="alert"></p>
+    <div class="dialog-footer"><button type="button" class="secondary-button" id="local-save-seats">保存座位</button><button type="submit" class="primary-button" id="local-start">开始本局 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></button></div>
+  </form>
+</dialog>
+<dialog id="room-connection-dialog" class="room-recovery-dialog" aria-labelledby="room-connection-title">
+  <div class="dialog-heading"><h2 id="room-connection-title">等待玩家重连</h2><button type="button" class="icon-button" data-close="room-connection-dialog" title="查看牌桌" aria-label="关闭等待面板"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div>
+  <div id="room-connection-members" class="room-recovery-members"></div>
+  <p id="room-connection-time" class="setup-status"></p>
+  <div class="dialog-footer"><button type="button" class="secondary-button" data-close="room-connection-dialog">查看牌桌</button></div>
+</dialog>
+<dialog id="room-recovery-dialog" class="room-recovery-dialog" aria-labelledby="room-recovery-title">
+  <div class="dialog-heading"><h2 id="room-recovery-title">房间已恢复</h2><button type="button" class="icon-button" data-close="room-recovery-dialog" title="查看牌桌" aria-label="关闭恢复面板"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div>
+  <p id="room-recovery-summary" class="setup-status"></p>
+  <div id="room-recovery-members" class="room-recovery-members"></div>
+  <p id="room-recovery-time" class="setup-status"></p>
+  <p id="room-recovery-error" class="inline-error" role="alert"></p>
+  <div class="dialog-footer"><button type="button" class="secondary-button" data-close="room-recovery-dialog">查看牌桌</button><button type="button" class="primary-button" id="room-resume">继续对局 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></button></div>
+</dialog>
+<dialog id="wall-review-dialog" class="wall-review-dialog" aria-labelledby="wall-review-title">
+  <div class="dialog-heading"><div><span class="eyebrow">ROUND WALL</span><h2 id="wall-review-title">本局牌山</h2></div><button type="button" class="icon-button" data-close="wall-review-dialog" title="关闭牌山" aria-label="关闭牌山"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div>
+  <p id="wall-review-summary" class="wall-review-summary"></p>
+  <p id="wall-review-error" class="inline-error" role="alert"></p>
+  <div id="wall-review-content"></div>
+</dialog>

@@ -74,6 +74,13 @@
   </dialog>
 
   <dialog id="result-dialog" class="result-dialog"><div class="dialog-heading"><div><span class="eyebrow">ROUND RESULT</span><h2 id="result-title">胡牌</h2></div><button class="icon-button" data-close="result-dialog" title="返回牌桌" aria-label="返回牌桌"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div><div id="result-content"></div><div class="dialog-footer"><button class="secondary-button" data-close="result-dialog">查看牌桌</button><button class="primary-button" id="next-round-button">下一局 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></button></div></dialog>
+  <dialog id="recovery-dialog" class="recovery-dialog" aria-labelledby="recovery-title">
+    <div class="dialog-heading"><h2 id="recovery-title">恢复对局</h2></div>
+    <p id="recovery-summary"></p>
+    <p id="recovery-time" class="setup-status"></p>
+    <p id="recovery-error" class="inline-error" role="alert"></p>
+    <div class="dialog-footer"><button type="button" id="recovery-reset" class="secondary-button">放弃旧局</button><button type="button" id="recovery-resume" class="primary-button">继续对局 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></button></div>
+  </dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 </body>
 </html>

@@ -1,1 +1,1 @@
-"""Local solitaire developer UI for the Arithmetic Mahjong simulator."""
+"""Shared table assets for human rooms and bot practice."""

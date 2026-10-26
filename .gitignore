@@ -1,4 +1,5 @@
 .venv/
+.venv-bot/
 venv/
 env/
 
@@ -9,9 +10,15 @@ __pycache__/
 .pytest_cache
 .npm-cache/
 UI/.runtime/
+multiplayer/.runtime/
+multiplayer/test/
+/test/
+.data/
 
 .idea/
 .codex/
+.agent/
+.pytest_cache
 .vscode/
 *.swp
 *.swo
