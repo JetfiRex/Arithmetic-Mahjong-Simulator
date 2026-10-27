@@ -65,7 +65,8 @@ class LiveRooms(LocalRooms):
         return bool(self.presence[member_id].connections)
 
     def _connection_members(self, room):
-        return room.members.keys()
+        exited = {room.round_members[p.seat] for p in room.game.players if p.is_out} if room.game else set()
+        return (mid for mid in room.members if mid not in exited or mid == room.host_id)
 
     def open_connection(self, token, *, instance_id, now=None):
         """A new authenticated socket hands off a refresh without dropping the old one."""
@@ -226,6 +227,9 @@ class LiveRooms(LocalRooms):
                     if table is None or table.round_id != room.game.round_id:
                         table = self._new_table(room)
                     for mid, control in table.seats.items():
+                        if room.game.players[room.round_members.index(mid)].is_out:
+                            control.grace_deadline = None
+                            continue
                         presence = self.presence[mid]
                         lost_at = None if self._connected(mid) or presence.disconnected_at is None else presence.disconnected_at + self.disconnect_seconds
                         if not control.autopilot and control.grace_deadline is None and lost_at is not None and timestamp >= lost_at:
@@ -310,7 +314,8 @@ class LiveRooms(LocalRooms):
                                if mid in self.outage_required and not self.presence[mid].connections]
                 packet["room"]["connection"] = {"paused": room.recovery_pending, "waiting": waiting,
                                                   "reason": "server_outage" if self.outage_started_at is not None else "player_disconnect"}
-                packet["ui"]["autopilot"] = bool(control and control.autopilot and room.phase == RoomPhase.PLAYING)
+                packet["ui"]["autopilot"] = bool(control and control.autopilot and room.phase == RoomPhase.PLAYING
+                    and not (packet.get("viewer_player_id") and room.game.get_player(packet["viewer_player_id"]).is_out))
                 if packet["ui"]["autopilot"]:
                     packet["ui"]["grouping_allowed"] = False
                     packet["ui"]["stage"] = "AUTOPILOT"

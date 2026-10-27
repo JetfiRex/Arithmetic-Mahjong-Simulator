@@ -10,10 +10,10 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 from bots.math_bot_helper.analysis import AnalysisBudget
-from bots.math_bot_helper.features import arithmetic_patterns, traditional_patterns, counts_from_values, possible_shape
+from bots.math_bot_helper.features import arithmetic_patterns, traditional_patterns, counts_from_values, possible_shape, seven_pairs_target
 from bots.common_bot_helper.observation import TILE_VALUES
 
-DISTANCE_VERSION = 'shape-distance-v1'
+DISTANCE_VERSION = 'shape-distance-v2-distinct-pairs'
 INF = 99
 
 
@@ -61,18 +61,7 @@ def _special_target(hand, fixed, capacity):
     size = 14 - sum(fixed)
     if size < 0:
         return INF, None, None
-    # Per-value concealed counts make (concealed + fixed) even. Optimise the
-    # overlap rather than counting pairs independently and reusing copies.
-    dp = {0: (0, ())}
-    for h, m, cap in zip(hand, fixed, capacity):
-        nxt = {}
-        for used, (cost, path) in dp.items():
-            for n in range(m % 2, min(cap, size - used) + 1, 2):
-                candidate = (cost + max(0, n - h), path + (n,))
-                if used + n not in nxt or candidate[0] < nxt[used + n][0]:
-                    nxt[used + n] = candidate
-        dp = nxt
-    best, target = dp.get(size, (INF, None))
+    best, target = seven_pairs_target(hand, fixed, capacity) or (INF, None)
     family = '七小对' if target is not None else None  # includes 连七对
     for whole in _dragon_targets():
         concealed = tuple(n - m for n, m in zip(whole, fixed))

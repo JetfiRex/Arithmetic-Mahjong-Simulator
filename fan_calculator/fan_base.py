@@ -23,36 +23,31 @@ class FanType(Enum):
     DA_SI_XI = (6, "大四喜")
     QI_YI_SE = (6, "奇一色")
     LIAN_QI_DUI = (6, "连七对")
-    LIAN_BA_DUI = (6, "连七对")  # legacy enum name compatibility
     QUAN_ZHI_SHU = (6, "全质数")
-    WU_HE_SHU = (6, "全质数")  # legacy enum name compatibility
-    QUAN_ER_MI = (6, "全二幂")
+    SAN_KE_ZI = (6, "三刻子")
 
     # 5 fan
-    SAN_KE_ZI = (5, "三刻子")
+    QUAN_ER_MI = (5, "全二幂")
     SAN_TONG_SHI = (5, "三同式")
     QING_LONG = (5, "清龙")
 
     # 4 fan
     QUAN_DUO_BEI = (4, "全多倍")
     QUAN_ER_WEI = (4, "全二位")
-    TIAN_HU = (4, "天胡")
 
     # 3 fan
+    TIAN_HU = (3, "天胡")
     QUAN_SAN_BEI = (3, "全三倍")
-    QUAN_YI_WEI = (3, "全一位")
 
     # 2 fan
+    QUAN_YI_WEI = (2, "全一位")
     QI_XIAO_DUI = (2, "七小对")
-    BA_XIAO_DUI = (2, "七小对")  # legacy enum name compatibility
     QUAN_OU_SHU = (2, "全偶数")
     SAN_MEN_QI = (2, "三门齐")
-    SI_MEN_QI = (2, "三门齐")  # legacy enum name compatibility
-    CHUAN_TONG_MAJIANG = (2, "传统麻将")
 
     # 1 fan
+    CHUAN_TONG_MAJIANG = (1, "传统麻将")
     YI_DUI_SHI = (1, "一对式")
-    YI_BAN_GAO = (1, "一对式")  # legacy enum name compatibility
     JIA_YI_SE = (1, "加一色")
     CHENG_YI_SE = (1, "乘一色")
     BU_QIU_REN = (1, "不求人")
@@ -129,8 +124,7 @@ class FanResults:
 FAN_EXCLUSIONS = {
     FanType.DA_SAN_YUAN: [FanType.SAN_KE_ZI],
     FanType.LIAN_QI_DUI: [FanType.QI_XIAO_DUI],
-    FanType.LIAN_BA_DUI: [FanType.BA_XIAO_DUI],
-    FanType.SAN_TONG_SHI: [FanType.YI_DUI_SHI, FanType.YI_BAN_GAO],
+    FanType.SAN_TONG_SHI: [FanType.YI_DUI_SHI],
     FanType.QUAN_DUO_BEI: [FanType.QUAN_SAN_BEI, FanType.QUAN_OU_SHU],
     FanType.QUAN_SAN_BEI: [FanType.QUAN_OU_SHU],
 }

@@ -45,6 +45,8 @@ def build_discard_response_options(
     wall_remaining: int,
     min_fan: int = 1,
     rule_adapter: RuleAdapter | None = None,
+    is_heavenly: bool = False,
+    chi_player_seat: int | None = None,
 ) -> list[ActionOption]:
     """Return response options after another player discards a tile.
 
@@ -59,6 +61,7 @@ def build_discard_response_options(
         min_fan=min_fan,
         source_player_id=source_player.player_id,
         rule_adapter=rule_adapter,
+        is_heavenly=is_heavenly,
     )
     if hu_option:
         options.append(hu_option)
@@ -79,6 +82,7 @@ def build_discard_response_options(
         player=player,
         source_player=source_player,
         discarded_tile=discarded_tile,
+        next_seat=chi_player_seat,
     )
     if chi_option:
         options.append(chi_option)
@@ -95,6 +99,7 @@ def build_turn_action_options(
     rule_adapter: RuleAdapter | None = None,
     allow_self_hu: bool = True,
     winning_tile: Any = None,
+    is_heavenly: bool = False,
 ) -> list[ActionOption]:
     """Return options for the current player after drawing a tile.
 
@@ -110,6 +115,7 @@ def build_turn_action_options(
             min_fan=min_fan,
             rule_adapter=rule_adapter,
             winning_tile=winning_tile,
+            is_heavenly=is_heavenly,
         )
         if hu_option:
             options.append(hu_option)
@@ -148,13 +154,14 @@ def build_chi_option(
     player: Any,
     source_player: Any,
     discarded_tile: Any,
+    next_seat: int | None = None,
 ) -> ActionOption | None:
     """Return CHI when the player is the source player's next seat.
 
     Listed options are deduplicated by arithmetic formula. Physical duplicate
     tiles are selected later by the grouping-aware tile selector.
     """
-    if player.seat != _next_seat(source_player.seat):
+    if player.seat != (next_seat if next_seat is not None else _next_seat(source_player.seat)):
         return None
 
     payloads_by_formula: dict[tuple[Any, ...], dict[str, Any]] = {}
@@ -353,6 +360,7 @@ def build_hu_response_option(
     source_player_id: str | None = None,
     rule_adapter: RuleAdapter | None = None,
     win_method: WinMethod = WinMethod.DISCARD,
+    is_heavenly: bool = False,
 ) -> ActionOption | None:
     """Return HU when adding the discarded tile creates a winning hand."""
     adapter = rule_adapter or ArithmeticMahjongRuleAdapter(min_fan=min_fan)
@@ -363,6 +371,7 @@ def build_hu_response_option(
             winning_tile=discarded_tile,
             win_method=win_method,
             source_player_id=source_player_id,
+            is_heavenly=is_heavenly,
         ),
     )
     if not result.can_win:
@@ -377,6 +386,7 @@ def build_self_hu_option(
     min_fan: int = 1,
     rule_adapter: RuleAdapter | None = None,
     winning_tile: Any = None,
+    is_heavenly: bool = False,
 ) -> ActionOption | None:
     """Return HU when the player's current hand is already a winning hand."""
     if winning_tile is None:
@@ -388,6 +398,7 @@ def build_self_hu_option(
             winner_id=player.player_id,
             winning_tile=winning_tile,
             win_method=WinMethod.SELF_DRAW,
+            is_heavenly=is_heavenly,
         ),
     )
     if not result.can_win:

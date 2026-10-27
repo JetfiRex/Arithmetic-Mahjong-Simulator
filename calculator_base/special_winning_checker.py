@@ -18,12 +18,7 @@ def tile_value(tile):
 
 
 class SevenPairsChecker:
-    """
-    Seven-pairs checker.
-
-    The old complex-version method names used "eight_pairs"; they are retained
-    as aliases while the caller modules are being renamed.
-    """
+    """Seven distinct pairs; four identical tiles cannot count as two pairs."""
 
     def can_win_seven_pairs(self, tiles_list):
         if len(tiles_list) != 14:
@@ -35,10 +30,9 @@ class SevenPairsChecker:
 
         pairs = []
         for tiles in value_to_tiles.values():
-            if len(tiles) % 2 != 0:
+            if len(tiles) != 2:
                 return False, []
-            for idx in range(0, len(tiles), 2):
-                pairs.append(list(tiles[idx : idx + 2]))
+            pairs.append(list(tiles))
 
         return len(pairs) == 7, pairs if len(pairs) == 7 else []
 
@@ -48,18 +42,17 @@ class SevenPairsChecker:
 
         values = [tile_value(tile) for tile in tiles_list]
         counter = Counter(values)
-        singles = [value for value, count in counter.items() if count % 2 == 1]
+        singles = []
+        for value, count in counter.items():
+            if count >= 3:
+                return False, []
+            if count == 1:
+                singles.append(value)
 
         if len(singles) == 1:
             return True, singles
 
         return False, []
-
-    def can_win_eight_pairs(self, tiles_list):
-        return self.can_win_seven_pairs(tiles_list)
-
-    def is_ready_eight_pairs(self, tiles_list):
-        return self.is_ready_seven_pairs(tiles_list)
 
 
 class SpecialWinningChecker:

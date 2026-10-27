@@ -210,7 +210,7 @@ function renderHand() {
     }
     for (const id of region.ids) {
       const node = tile(records.get(id), true);
-      node.disabled = !!ui().recovery_pending || !!ui().autopilot || !!(state.network?.enabled && !localRoom?.connectionId);
+      node.disabled = !!me().is_out || !!ui().recovery_pending || !!ui().autopilot || !!(state.network?.enabled && !localRoom?.connectionId);
       node.dataset.tileId = id;
       node.classList.toggle("selected", selected === id || chiSelection.has(id));
       node.classList.toggle("group-selected", groupSelection.has(id));
@@ -452,7 +452,7 @@ function renderOpponents() {
     panel.classList.toggle("active", state.phase === "WAITING_TURN_ACTION" && state.current_turn_seat === seat);
     panel.dataset.seat = seat;
     const heading = element("div", "opponent-heading");
-    heading.append(element("strong", "", player.name), element("span", "", `${player.is_dealer ? "庄 · " : ""}${player.hand_count} 张`));
+    heading.append(element("strong", "", player.name), element("span", "", `${player.is_dealer ? "庄 · " : ""}${player.is_out ? `已胡 · 第${player.win_order}位 · ` : ""}${player.hand_count} 张`));
     const backs = element("div", "opponent-hand");
     for (let i = 0; i < player.hand_count; i++) backs.append(player.observer_tiles ? tile(player.observer_tiles[i]) : element("span", "mini-back"));
     panel.append(heading, backs, element("span", "opponent-score", `${player.score} 分`));
@@ -607,14 +607,22 @@ function openEditor(kind) {
 }
 
 function showResult() {
-  const result = state.round_result;
+  const finished = Boolean(state.round_result);
+  const partial = !finished && state.config?.mode === "blood_battle" && state.settlement_events?.length;
+  const result = state.round_result || (partial ? { settlement_events: state.settlement_events,
+    score_deltas: state.players.map((player) => ({ player_id: player.player_id,
+      delta: state.settlement_events.reduce((total, event) => total + (event.score_deltas.find((item) => item.player_id === player.player_id)?.delta || 0), 0) })) } : null);
   if (!result) return;
   const content = $("result-content"); content.replaceChildren();
   const ownEvent = result.settlement_events.find((e) => e.winner_id === viewerId());
   const events = localRoom ? result.settlement_events : ownEvent ? [ownEvent] : [];
   $("result-title").textContent = events.length ? `${events[0].win_result.win_method} · 胡牌` : "流局";
+  if (state.config?.mode === "blood_battle") $("result-title").textContent = finished
+    ? (result.end_reason === "wall_empty" ? "血战流局 · 保留此前结算" : "血战结束 · 三家已胡")
+    : `血战即时结算 · 已胡 ${events.length}/3 家`;
+  if (partial) content.append(element("p", "result-method", "血战仍在继续，整局结束后可查看牌山。"));
   for (const event of events) {
-    if (localRoom) content.append(element("h3", "", state.players.find((p) => p.player_id === event.winner_id)?.name));
+    if (localRoom) content.append(element("h3", "", `${event.win_order ? `第 ${event.win_order} 位 · ` : ""}${state.players.find((p) => p.player_id === event.winner_id)?.name}`));
     const win = event.win_result;
     const summary = element("div", "result-summary");
     summary.append(element("strong", "result-fan", win.total_fan), element("span", "", "番"));
@@ -628,10 +636,12 @@ function showResult() {
       if (item.count > 1) name.append(element("small", "", `×${item.count}`));
       row.append(name, element("span", "", `${item.total_fan} 番`)); content.append(row);
     }
-    content.append(element("p", "result-method", `${win.win_type} · 起和 ${win.starting_fan} 番 · 计分 ${win.capped_fan} 番 · 每家 ${win.base_payment} 分`));
+    const payers = event.score_deltas.filter((item) => item.delta < 0).map((item) => state.players.find((player) => player.player_id === item.player_id)?.name).join("、");
+    content.append(element("p", "result-method", `${win.win_method} · ${win.win_type} · 起和 ${win.starting_fan} 番 · 计分 ${win.capped_fan} 番 · 每家 ${win.base_payment} 分${localRoom ? ` · 付款：${payers}` : ""}`));
   }
   if (!events.length) content.append(element("p", "draw-result", "牌山已空，本局分数不变。"));
   if (localRoom) {
+    $("next-round-button").hidden = !finished;
     for (const player of state.players) {
       const delta = result.score_deltas.find((item) => item.player_id === player.player_id)?.delta || 0;
       content.append(element("p", "fan-row", `${player.name} · 座位 ${player.seat + 1} · 本局 ${delta >= 0 ? "+" : ""}${delta} · 累计 ${player.score} 分`));

@@ -14,25 +14,25 @@ from simulator.actions import (
     ResponseWindow, ResponseWindowStatus, RobKongWindow, TimeoutConfig,
     TimerKind, TimerState,
 )
-from simulator.config import GameConfig
+from simulator.config import GameConfig, GameMode
 from simulator.game_state import DiscardRecord, GamePhase, GameState, PlayerState, TileWall
 from simulator.hand_state import HandGroup, HandTile
 from simulator.rule_adapter import ArithmeticMahjongRuleAdapter, FanItem, WinMethod, WinResult
 from simulator.settlement import (
-    NormalScoringAdapter, PlayerScore, RoundEndReason, RoundResult, ScoreDelta,
-    SettlementEvent,
+    BloodBattleScoringAdapter, FinalPlayerState, NormalScoringAdapter, PlayerScore,
+    RoundEndReason, RoundResult, ScoreDelta, SettlementEvent,
 )
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _RECORDS = {cls.__name__: cls for cls in (
     GameState, PlayerState, TileWall, DiscardRecord, HandGroup, HandTile,
     ActionDetailState, ActionOption, ActionRequest, ResolvedAction, ResponseWindow,
     RobKongWindow, TimeoutConfig, TimerState, GameConfig, FanItem, WinResult,
-    PlayerScore, RoundResult, ScoreDelta, SettlementEvent,
+    PlayerScore, FinalPlayerState, RoundResult, ScoreDelta, SettlementEvent,
 )}
 _ENUMS = {cls.__name__: cls for cls in (
-    GamePhase, ActionType, ResponseWindowStatus, TimerKind, WinMethod, RoundEndReason,
+    GamePhase, ActionType, ResponseWindowStatus, TimerKind, WinMethod, RoundEndReason, GameMode,
 )}
 _SKIP = {GameState: {"rule_adapter", "scoring_adapter"}, PlayerState: {"_identity_values"}}
 _TRANSIENT_PHASES = {GamePhase.DEALING, GamePhase.RESOLVING_ACTION, GamePhase.SETTLING}
@@ -179,8 +179,9 @@ def _restore_adapters(raw: Any, rule_adapter: Any, scoring_adapter: Any) -> dict
             min_fan=rule_data["min_fan"], ruleset_id=rule_data["ruleset_id"],
         )
     if scoring_adapter is None:
-        _require(scoring_data == {"kind": _adapter_name(NormalScoringAdapter())}, "A custom scoring adapter must be supplied")
-        scoring_adapter = NormalScoringAdapter()
+        factories = {_adapter_name(cls()): cls for cls in (NormalScoringAdapter, BloodBattleScoringAdapter)}
+        _require(set(scoring_data) == {"kind"} and scoring_data["kind"] in factories, "A custom scoring adapter must be supplied")
+        scoring_adapter = factories[scoring_data["kind"]]()
     probe = GameState(players=[], wall=TileWall([]), rule_adapter=rule_adapter, scoring_adapter=scoring_adapter)
     _require(_adapter_descriptions(probe) == raw, "Checkpoint adapter configuration does not match")
     return {"rule_adapter": rule_adapter, "scoring_adapter": scoring_adapter}
@@ -216,6 +217,17 @@ def validate_game_state(game: GameState) -> None:
     _require(len(ids) == 4 and all(ids), "Invalid player identities")
     _require(game.current_turn_seat in range(4) and game.dealer_seat in range(4), "Invalid current/dealer seat")
     _require(bool(game.game_id) and bool(game.round_id), "Missing game identity")
+    if game.config.mode == GameMode.BLOOD_BATTLE:
+        winners = {event.winner_id: event for event in game.settlement_events}
+        _require(len(winners) == len(game.settlement_events) <= 3, "Duplicate/too many blood-battle winners")
+        _require([event.win_order for event in game.settlement_events] == list(range(1, len(winners) + 1)), "Invalid win order")
+        _require(len(winners) < 3 or game.phase == GamePhase.ROUND_ENDED, "Three winners must end blood battle")
+        for player in game.players:
+            event = winners.get(player.player_id)
+            _require(player.is_winner == player.is_out == (event is not None), "Invalid exited-player status")
+            _require(player.win_order == (event.win_order if event else None)
+                     and player.win_settlement_id == (event.settlement_id if event else None), "Invalid winner settlement reference")
+        _require(game.phase == GamePhase.ROUND_ENDED or not game.current_player().is_out, "Exited player's turn")
     all_hand_ids: set[str] = set()
 
     def tiles(values):
@@ -254,6 +266,7 @@ def validate_game_state(game: GameState) -> None:
             continue
         _require(window.source_player_id in ids and bool(window.window_id), "Invalid window source")
         _require(set(window.options_by_player) <= ids - {window.source_player_id}, "Invalid responders")
+        _require(not any(game.get_player(pid).is_out for pid in window.options_by_player), "Exited response owner")
         _require(set(window.requests_by_player) <= set(window.options_by_player), "Unknown response owner")
         for owner, request in window.requests_by_player.items():
             _require(request.player_id == owner and request.source_window_id == window.window_id, "Broken request reference")
@@ -293,9 +306,40 @@ def validate_game_state(game: GameState) -> None:
         result = game.round_result
         _require(game.phase == GamePhase.ROUND_ENDED and result.round_id == game.round_id, "Invalid round result")
         _require(result.settlement_events == tuple(game.settlement_events), "Mismatched settlement events")
+        _require(result.mode == game.config.mode, "Mismatched round mode")
         _require({item.player_id: item.score for item in result.final_scores} == {player.player_id: player.score for player in game.players}, "Mismatched final scores")
         _require(sum(item.delta for item in result.score_deltas) == 0, "Unbalanced settlement")
+        if game.config.mode == GameMode.BLOOD_BATTLE:
+            _require(result.winner_ids == tuple(event.winner_id for event in game.settlement_events), "Mismatched winner order")
+            _require(result.remaining_player_ids == tuple(p.player_id for p in game.players if not p.is_out), "Mismatched remaining players")
+            _require(result.final_player_states == tuple(FinalPlayerState(
+                p.player_id, p.seat, p.score, p.is_winner, p.is_out, p.win_order, p.win_settlement_id,
+            ) for p in game.players), "Mismatched final player states")
+            expected_reason = (RoundEndReason.BLOOD_BATTLE_COMPLETE if len(game.settlement_events) == 3
+                               else RoundEndReason.WALL_EMPTY)
+            _require(result.end_reason == expected_reason, "Invalid blood-battle end reason")
     _require(len({event.settlement_id for event in game.settlement_events}) == len(game.settlement_events), "Duplicate settlement identity")
+
+
+def _upgrade_v1(value):
+    """Add only the known blood-battle fields to an ordinary v1 checkpoint."""
+    if isinstance(value, list):
+        return [_upgrade_v1(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {key: _upgrade_v1(item) for key, item in value.items()}
+    defaults = {
+        "GameConfig": {"mode": {"enum": "GameMode", "value": "normal"}},
+        "PlayerState": {"is_out": False, "win_order": None, "win_settlement_id": None},
+        "SettlementEvent": {"win_order": None},
+        "RoundResult": {"mode": {"enum": "GameMode", "value": "normal"},
+                        "remaining_player_ids": {"tuple": []}, "final_player_states": {"tuple": []},
+                        "event_log": {"tuple": []}},
+    }
+    if result.get("record") in defaults and isinstance(result.get("fields"), dict):
+        for key, item in defaults[result["record"]].items():
+            result["fields"].setdefault(key, item)
+    return result
 
 
 def capture_game_state(game: GameState, *, now: float) -> dict[str, Any]:
@@ -318,11 +362,12 @@ def restore_game_state(
     """Rebuild a checkpoint at a new clock origin without drawing or settling."""
     _require(_number(now), "Invalid restore clock")
     _require(type(snapshot) is dict and set(snapshot) == {"schema_version", "kind", "clock", "adapters", "state"}, "Invalid checkpoint envelope")
-    _require(type(snapshot["schema_version"]) is int and snapshot["schema_version"] == SCHEMA_VERSION, "Unsupported checkpoint schema")
+    _require(type(snapshot["schema_version"]) is int and snapshot["schema_version"] in (1, SCHEMA_VERSION), "Unsupported checkpoint schema")
     _require(snapshot["kind"] == "game-state" and snapshot["clock"] == "relative-v1", "Unsupported checkpoint kind/clock")
     try:
         adapters = _restore_adapters(snapshot["adapters"], rule_adapter, scoring_adapter)
-        game = _decode(snapshot["state"], adapters=adapters)
+        state = _upgrade_v1(snapshot["state"]) if snapshot["schema_version"] == 1 else snapshot["state"]
+        game = _decode(state, adapters=adapters)
         _require(type(game) is GameState, "Checkpoint root is not a GameState")
         validate_game_state(game)
         shift_game_clock(game, now)

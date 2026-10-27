@@ -63,7 +63,7 @@ class BotRooms(LiveRooms):
         return member_id in self.bots or super()._connected(member_id)
 
     def _connection_members(self, room):
-        return (mid for mid in room.members if mid not in self.bots)
+        return (mid for mid in super()._connection_members(room) if mid not in self.bots)
 
     def _advance(self, room, now):
         game = room.game

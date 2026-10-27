@@ -31,7 +31,6 @@ class ArithmeticMahjong:
         self.arithmetic_checker = ArithmeticMahjongChecker()
         self.traditional_checker = TraditionalMahjongChecker()
         self.seven_pairs_checker = SevenPairsChecker()
-        self.eight_pairs_checker = self.seven_pairs_checker
         self.special_winning_checker = SpecialWinningChecker()
 
     # Backward-compatible arithmetic helpers.
@@ -130,6 +129,7 @@ class ArithmeticMahjong:
                 winning_tile=test_tile,
                 winning_method=hand.winning_method,
                 should_win_in_mode=True,
+                is_heavenly=hand.is_heavenly,
             )
             can_win, groups, win_type, fan_info = self.can_win(test_hand)
             if not can_win:
@@ -174,6 +174,7 @@ class ArithmeticMahjong:
                 winning_tile=source_hand.winning_tile,
                 winning_method=source_hand.winning_method,
                 win_type=win_type,
+                is_heavenly=source_hand.is_heavenly,
             )
             fan_result = calculate_fan(hand_for_fan, min_fan=self.min_fan)
             total_fan = fan_result.get_total_fan()

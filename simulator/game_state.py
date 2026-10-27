@@ -37,7 +37,7 @@ from simulator.action_options import (
     is_valid_chi_selection,
 )
 from simulator.action_resolver import resolve_response_requests
-from simulator.config import GameConfig
+from simulator.config import GameConfig, GameMode
 from simulator.hand_state import HandGroup, HandTile
 from simulator.melds import (
     make_an_gang_meld,
@@ -54,6 +54,8 @@ from simulator.rule_adapter import (
     WinMethod,
 )
 from simulator.settlement import (
+    BloodBattleScoringAdapter,
+    FinalPlayerState,
     NormalScoringAdapter,
     PlayerScore,
     RoundEndReason,
@@ -157,6 +159,9 @@ class PlayerState:
     score: int = 0
     is_ready: bool = False
     is_winner: bool = False
+    is_out: bool = False
+    win_order: int | None = None
+    win_settlement_id: str | None = None
     hand_tile_ids: list[str] = field(default_factory=list, init=False, repr=False)
     hand_groups: list[HandGroup] = field(default_factory=list)
     _identity_values: list[TileValue] = field(default_factory=list, init=False, repr=False)
@@ -365,6 +370,9 @@ class PlayerState:
             "score": self.score,
             "is_ready": self.is_ready,
             "is_winner": self.is_winner,
+            "is_out": self.is_out,
+            "win_order": self.win_order,
+            "win_settlement_id": self.win_settlement_id,
         }
         if reveal_hand:
             data["hand_tiles"] = list(self.hand_tiles)
@@ -460,6 +468,10 @@ class GameState:
     active_timer: Optional[TimerState] = None
     discard_history: list[DiscardRecord] = field(default_factory=list)
     event_log: list[dict[str, Any]] = field(default_factory=list)
+
+    def __post_init__(self):
+        if self.config.mode == GameMode.BLOOD_BATTLE and type(self.scoring_adapter) is NormalScoringAdapter:
+            self.scoring_adapter = BloodBattleScoringAdapter()
 
     @classmethod
     def new_game(
@@ -621,7 +633,7 @@ class GameState:
     ) -> None:
         self._require_phase(GamePhase.WAITING_TURN_ACTION)
         self._require_turn_window(source_turn_window_id)
-        player = self.get_player(player_id)
+        player = self._require_active_player(player_id)
         player.move_tile(from_index, to_index)
         self._log_event(
             "hand_tile_reordered",
@@ -642,7 +654,7 @@ class GameState:
     ) -> None:
         self._require_phase(GamePhase.WAITING_TURN_ACTION)
         self._require_turn_window(source_turn_window_id)
-        player = self.get_player(player_id)
+        player = self._require_active_player(player_id)
         player.move_tile_by_id(tile_id, to_index, group_id=group_id)
         self._log_event(
             "hand_tile_moved",
@@ -662,7 +674,7 @@ class GameState:
     ) -> HandGroup:
         self._require_phase(GamePhase.WAITING_TURN_ACTION)
         self._require_turn_window(source_turn_window_id)
-        player = self.get_player(player_id)
+        player = self._require_active_player(player_id)
         group = player.create_hand_group(tile_ids)
         self._log_event(
             "hand_group_created",
@@ -682,7 +694,7 @@ class GameState:
     ) -> HandGroup:
         self._require_phase(GamePhase.WAITING_TURN_ACTION)
         self._require_turn_window(source_turn_window_id)
-        player = self.get_player(player_id)
+        player = self._require_active_player(player_id)
         group = player.disband_hand_group(group_id)
         self._log_event(
             "hand_group_disbanded",
@@ -695,7 +707,7 @@ class GameState:
 
     def apply_chi(self, player_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         """Execute chi using canonical display data from ActionOption payload."""
-        player = self.get_player(player_id)
+        player = self._require_active_player(player_id)
         hand_values = list(payload.get("hand_tiles", []))
         display_tiles = list(payload["display_tiles"])
         claimed_display_index = payload["claimed_display_index"]
@@ -718,7 +730,7 @@ class GameState:
         selected_tile_ids: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """Execute peng; remove the leftmost three matching hand tiles."""
-        player = self.get_player(player_id)
+        player = self._require_active_player(player_id)
         if selected_tile_ids is None:
             player.remove_leftmost_values([tile] * 3)
         else:
@@ -736,7 +748,7 @@ class GameState:
         selected_tile_ids: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """Execute ming-gang; remove the leftmost four matching hand tiles."""
-        player = self.get_player(player_id)
+        player = self._require_active_player(player_id)
         if selected_tile_ids is None:
             player.remove_leftmost_values([tile] * 4)
         else:
@@ -754,7 +766,7 @@ class GameState:
         selected_tile_ids: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """Execute an-gang using preselected physical tiles when provided."""
-        player = self.get_player(player_id)
+        player = self._require_active_player(player_id)
         if selected_tile_ids is None:
             player.remove_leftmost_values([tile] * 5)
         else:
@@ -773,7 +785,7 @@ class GameState:
         selected_tile_ids: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """Execute jia-gang using a preselected physical tile when provided."""
-        player = self.get_player(player_id)
+        player = self._require_active_player(player_id)
         if meld_index < 0 or meld_index >= len(player.melded_groups):
             raise GameStateError(f"明牌组位置越界: {meld_index}")
         target_meld = player.melded_groups[meld_index]
@@ -844,10 +856,13 @@ class GameState:
             ):
                 raise GameStateError("当前没有自摸选项")
             self._settle_wins(
-                [WinContext(player_id, player.tile_value(self.drawn_tile_id), WinMethod.SELF_DRAW)],
+                [WinContext(
+                    player_id, player.tile_value(self.drawn_tile_id), WinMethod.SELF_DRAW,
+                    is_heavenly=self._is_heavenly_candidate(player_id),
+                )],
                 reason="self_draw",
             )
-            return self.round_result.to_dict()
+            return self.round_result.to_dict() if self.round_result else self.settlement_events[-1].to_dict()
 
         if action_type not in (ActionType.AN_GANG, ActionType.JIA_GANG):
             raise GameStateError(f"t3 动作 {action_type.value} 尚未接入执行流程")
@@ -979,7 +994,7 @@ class GameState:
 
         options_by_player = {}
         for other in self.players:
-            if other.player_id == player.player_id:
+            if other.player_id == player.player_id or other.is_out:
                 continue
             option = build_hu_response_option(
                 player=other,
@@ -987,6 +1002,7 @@ class GameState:
                 source_player_id=player.player_id,
                 rule_adapter=self.rule_adapter,
                 win_method=WinMethod.ROB_KONG,
+                is_heavenly=self._is_heavenly_candidate(other.player_id),
             )
             if option is not None:
                 options_by_player[other.player_id] = [option, ActionOption(ActionType.PASS)]
@@ -1068,7 +1084,10 @@ class GameState:
                 winners = winners[:1]
             self._settle_wins(
                 [
-                    WinContext(request.player_id, window.tile, WinMethod.ROB_KONG, source.player_id)
+                    WinContext(
+                        request.player_id, window.tile, WinMethod.ROB_KONG, source.player_id,
+                        is_heavenly=self._is_heavenly_candidate(request.player_id),
+                    )
                     for request in winners
                 ],
                 reason="rob_kong",
@@ -1271,6 +1290,10 @@ class GameState:
         elif timer_kind == TimerKind.ROB_KONG_RESPONSE:
             self._expire_rob_kong_window(now)
 
+    def _is_heavenly_candidate(self, player_id: str) -> bool:
+        # Claimed discards leave the player's pile but remain in round history.
+        return not any(record.player_id == player_id for record in self.discard_history)
+
     def _settle_wins(
         self,
         contexts: list[WinContext],
@@ -1280,10 +1303,15 @@ class GameState:
     ) -> None:
         """Prepare every winner's result before applying any score changes."""
         events = []
-        player_ids = {player.player_id for player in self.players}
+        winners = [context.winner_id for context in contexts]
+        if not winners or len(set(winners)) != len(winners):
+            raise GameStateError("胡牌玩家不能为空或重复")
+        blood = self.config.mode == GameMode.BLOOD_BATTLE
+        if blood and len(self.settlement_events) + len(winners) > 3:
+            raise GameStateError("血战最多三位赢家")
         try:
             for context in contexts:
-                player = self.get_player(context.winner_id)
+                player = self._require_active_player(context.winner_id)
                 result = self.rule_adapter.evaluate_win(HandSnapshot.from_player(player), context)
                 if not result.can_win:
                     raise GameStateError(result.error or "胡牌条件已不满足")
@@ -1295,7 +1323,7 @@ class GameState:
                         source_player_id=context.source_player_id,
                         eligible_payer_ids=tuple(
                             other.player_id for other in self.players
-                            if other.player_id != player.player_id
+                            if other.player_id != player.player_id and not other.is_out
                         ),
                     ),
                 )
@@ -1306,12 +1334,14 @@ class GameState:
                     or event.source_player_id != context.source_player_id
                     or event.win_result != result
                     or len(delta_ids) != len(set(delta_ids))
-                    or not set(delta_ids).issubset(player_ids)
+                    or not set(delta_ids).issubset({p.player_id for p in self.players if not p.is_out})
                     or not delta_ids
                     or any(type(delta.delta) is not int for delta in event.score_deltas)
                     or sum(delta.delta for delta in event.score_deltas) != 0
                 ):
                     raise GameStateError("结算器返回了无效的结算记录")
+                if blood:
+                    event = replace(event, win_order=len(self.settlement_events) + len(events) + 1)
                 events.append(event)
         except ValueError as exc:
             raise GameStateError(f"无法结算: {exc}") from exc
@@ -1328,7 +1358,12 @@ class GameState:
         self.active_timer = None
         self._log_event("settlement_started", winner_ids=[event.winner_id for event in events])
         for event in events:
-            self.get_player(event.winner_id).is_winner = True
+            winner = self.get_player(event.winner_id)
+            winner.is_winner = True
+            if blood:
+                winner.is_out = True
+                winner.win_order = event.win_order
+                winner.win_settlement_id = event.settlement_id
             for delta in event.score_deltas:
                 self.get_player(delta.player_id).score += delta.delta
             self.settlement_events.append(event)
@@ -1343,15 +1378,25 @@ class GameState:
                 )
             )
             self._log_event("win_settled", settlement=event.to_dict())
-        self.end_round("hu")
+        if not blood:
+            self.end_round("hu")
+        elif len(self.settlement_events) == 3:
+            self.end_round("blood_battle_complete")
+        else:
+            self._clear_action_windows()
+            self._advance_after_unclaimed_discard(self.get_player(events[-1].winner_id).seat, "blood_win")
 
     def end_round(self, reason: str) -> None:
         """Finish once and expose the immutable result until manual restart."""
         if self.phase == GamePhase.ROUND_ENDED:
             raise GameStateError("本局已经结束")
         end_reason = RoundEndReason(reason)
-        if end_reason == RoundEndReason.BLOOD_BATTLE_COMPLETE:
-            raise GameStateError("血战模式尚未实现")
+        if end_reason == RoundEndReason.BLOOD_BATTLE_COMPLETE and (
+            self.config.mode != GameMode.BLOOD_BATTLE or len(self.settlement_events) != 3
+        ):
+            raise GameStateError("只有血战已有三位赢家时才能结束")
+        if self.config.mode == GameMode.BLOOD_BATTLE and end_reason == RoundEndReason.HU:
+            raise GameStateError("血战只能三家胡牌或牌山摸空后结束")
         if end_reason == RoundEndReason.HU and not self.settlement_events:
             raise GameStateError("胡牌必须先生成结算记录")
         if self.phase != GamePhase.SETTLING:
@@ -1361,6 +1406,15 @@ class GameState:
         for event in self.settlement_events:
             for delta in event.score_deltas:
                 deltas[delta.player_id] += delta.delta
+        self._log_event("round_ended", reason=reason)
+        public_kinds = {"round_started", "initial_hands_dealt", "tile_drawn", "tile_discarded",
+                        "meld_created", "meld_upgraded", "jia_gang_declared", "gang_replacement_drawn",
+                        "win_settled", "round_ended"}
+        public_log = tuple({key: value for key, value in event.items()
+                            if key in {"sequence", "type", "player_id", "seat", "reason"}
+                            or key == "tile" and event["type"] in {"tile_discarded", "jia_gang_declared"}}
+                           for event in self.event_log if event["type"] in public_kinds
+                           and "_private_to_player_id" not in event)
         self.round_result = RoundResult(
             round_id=self.round_id,
             end_reason=end_reason,
@@ -1370,8 +1424,18 @@ class GameState:
             settlement_events=tuple(self.settlement_events),
             final_scores=tuple(PlayerScore(player.player_id, player.score) for player in self.players),
             score_deltas=tuple(ScoreDelta(player_id, delta) for player_id, delta in deltas.items()),
+            mode=self.config.mode,
+            remaining_player_ids=tuple(player.player_id for player in self.players if not player.is_winner),
+            final_player_states=tuple(FinalPlayerState(
+                player.player_id, player.seat, player.score, player.is_winner, player.is_out,
+                player.win_order, player.win_settlement_id,
+            ) for player in self.players),
+            event_log=public_log,
         )
         self.phase = GamePhase.ROUND_ENDED
+        self._clear_action_windows()
+
+    def _clear_action_windows(self) -> None:
         self.response_window = None
         self.pending_action_detail = None
         self.rob_kong_window = None
@@ -1381,7 +1445,6 @@ class GameState:
         self.turn_hu_prompt_passed = False
         self.drawn_tile_id = None
         self.active_timer = None
-        self._log_event("round_ended", reason=reason)
 
     def start_next_round(
         self,
@@ -1406,6 +1469,9 @@ class GameState:
             player.discarded_tiles.clear()
             player.is_ready = False
             player.is_winner = False
+            player.is_out = False
+            player.win_order = None
+            player.win_settlement_id = None
             player.is_dealer = player.seat == self.dealer_seat
         self.last_discard = None
         self.response_window = None
@@ -1487,7 +1553,8 @@ class GameState:
             "dealer_seat": self.dealer_seat,
             "current_turn_seat": self.current_turn_seat,
             "phase": self.phase.value,
-            "config": {"allow_multiple_hu": self.config.allow_multiple_hu},
+            "config": {"allow_multiple_hu": self.config.allow_multiple_hu, "mode": self.config.mode.value},
+            "settlement_events": [event.to_dict() for event in self.settlement_events],
             "round_result": self.round_result.to_dict() if self.round_result else None,
             "wall": self.wall.to_dict(),
             "active_timer": self.active_timer.to_dict() if (
@@ -1577,7 +1644,7 @@ class GameState:
         source_player = self.get_player(record.player_id)
         options_by_player = {}
         for other in self.players:
-            if other.player_id == record.player_id:
+            if other.player_id == record.player_id or other.is_out:
                 continue
             options_by_player[other.player_id] = build_discard_response_options(
                 player=other,
@@ -1585,6 +1652,8 @@ class GameState:
                 discarded_tile=record.tile,
                 wall_remaining=self.wall.remaining_count(),
                 rule_adapter=self.rule_adapter,
+                is_heavenly=self._is_heavenly_candidate(other.player_id),
+                chi_player_seat=self._next_active_seat(record.seat),
             )
         opened_at = now
         timeout = self.timeout_config.discard_response_seconds
@@ -1630,6 +1699,7 @@ class GameState:
                         winning_tile=window.discard_record.tile,
                         win_method=WinMethod.DISCARD,
                         source_player_id=window.source_player_id,
+                        is_heavenly=self._is_heavenly_candidate(request.player_id),
                     )
                     for request in winners
                 ],
@@ -1756,7 +1826,7 @@ class GameState:
         return False
 
     def _advance_after_unclaimed_discard(self, source_seat: int, reason: str) -> None:
-        self.current_turn_seat = self._next_seat(source_seat)
+        self.current_turn_seat = self._next_active_seat(source_seat)
         self.phase = GamePhase.WAITING_DRAW
         self._log_event(
             "response_window_resolved",
@@ -1787,6 +1857,7 @@ class GameState:
                 rule_adapter=self.rule_adapter,
                 allow_self_hu=drawn_tile_id is not None,
                 winning_tile=player.tile_value(drawn_tile_id) if drawn_tile_id else None,
+                is_heavenly=self._is_heavenly_candidate(player.player_id),
             )
         }
         self.turn_window_id = str(uuid4())
@@ -1914,10 +1985,23 @@ class GameState:
             raise GameStateError(f"当前阶段是 {self.phase.value}，不能执行该动作")
 
     def _require_current_player(self, player_id: str) -> PlayerState:
-        player = self.get_player(player_id)
+        player = self._require_active_player(player_id)
         if player.seat != self.current_turn_seat:
             raise GameStateError(f"当前不是玩家 {player_id} 的回合")
         return player
+
+    def _require_active_player(self, player_id: str) -> PlayerState:
+        player = self.get_player(player_id)
+        if player.is_out:
+            raise GameStateError("已胡牌的玩家本局不能再操作")
+        return player
+
+    def _next_active_seat(self, source_seat: int) -> int:
+        for distance in range(1, 5):
+            seat = (source_seat + distance) % 4
+            if not self.players[seat].is_out:
+                return seat
+        raise GameStateError("没有未胡牌的玩家")
 
     @staticmethod
     def _next_seat(seat: int) -> int:

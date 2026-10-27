@@ -142,6 +142,7 @@ class Hand:
 
     hand_tiles is used for ungrouped checks and ready checks.
     hand_groups is used when a user provides an already-grouped winning hand.
+    is_heavenly adds the opening bonus without replacing winning_method.
     """
 
     def __init__(
@@ -153,6 +154,7 @@ class Hand:
         winning_method: Optional[str] = None,
         win_type: Optional[str] = None,
         should_win_in_mode: Optional[bool] = None,
+        is_heavenly: bool = False,
     ):
         self.melded_groups = melded_groups or []
         self.hand_tiles = hand_tiles or []
@@ -161,6 +163,7 @@ class Hand:
         self.winning_method = winning_method
         self.win_type = win_type
         self.should_win_in_mode = should_win_in_mode
+        self.is_heavenly = is_heavenly
 
     def __repr__(self):
         parts = []

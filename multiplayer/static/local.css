@@ -35,9 +35,15 @@
   .local-seats { grid-template-columns: minmax(0, 1fr); }
 }
 .local-multiple { display: flex; align-items: center; gap: 8px; margin-top: 20px; font-size: 13px; }
-.local-wall-button { display: block; padding: 0; background: transparent; border-radius: 5px; }
+.local-multiple select { flex: 1; min-width: 0; max-width: 100%; }
+.local-multiplayer .result-dialog .dialog-footer { flex-wrap: wrap; }
+.local-wall-button { display: block; padding: 0; background: transparent; border-radius: 5px; text-align: left; }
+.local-wall-button .deck-stack span { left: 0; top: 6px; }
+/* Scale the hit area and card layers together; button text alignment must not place the layers. */
+.opponent-seats:not([hidden]) ~ .table-center .local-wall-button { transform: scale(.85); transform-origin: center bottom; margin-bottom: -10px; }
+.opponent-seats:not([hidden]) ~ .table-center .local-wall-button .deck-stack { transform: none; margin: 0; }
 .local-wall-button:disabled { opacity: 1; cursor: default; }
-.local-wall-button:not(:disabled):hover { outline: 2px solid #e4cf98; outline-offset: 9px; }
+.local-wall-button:not(:disabled):is(:hover, :focus-visible) { outline: 2px solid #e4cf98; outline-offset: 1px; }
 .wall-review-dialog { width: min(1000px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 26px; overflow-y: auto; }
 .wall-review-dialog h2 { font-size: 20px; }
 .wall-review-dialog > .dialog-heading { position: sticky; top: -26px; z-index: 2; background: #fcfdf8; padding-top: 8px; padding-bottom: 8px; }

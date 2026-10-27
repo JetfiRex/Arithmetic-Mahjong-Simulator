@@ -81,7 +81,14 @@ class IngressMiddleware:
         if not self.settings.permits(scope["headers"], write=write):
             return await fail(403, "域名或来源不被允许")
         headers = dict(scope["headers"])
-        if headers.get(b"sec-fetch-site") == b"cross-site":
+        # Opening the public entry page from an external link is a normal
+        # top-level navigation. API requests, frames and writes stay protected.
+        entry_navigation = (
+            not websocket and method == "GET" and scope.get("path") in {"/", "/index.html"}
+            and headers.get(b"sec-fetch-mode") == b"navigate"
+            and headers.get(b"sec-fetch-dest") == b"document"
+        )
+        if headers.get(b"sec-fetch-site") == b"cross-site" and not entry_navigation:
             return await fail(403, "不允许跨站请求")
         if not self.limits.take("global", rate=400, burst=800):
             return await fail(429, "请求过多，请稍后重试")

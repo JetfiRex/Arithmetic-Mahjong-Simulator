@@ -145,7 +145,7 @@ def validate_special_winning(hand, special_win_type: str) -> Tuple[bool, Optiona
 
 def can_form_valid_groups(hand) -> bool:
     """
-    检查手牌能否组成有效的分组（算术麻将、传统麻将或八小对）
+    检查手牌能否组成有效的分组（算术麻将、传统麻将或七小对）
     
     参数：
         hand: 列表形式的手牌

@@ -1,6 +1,6 @@
 # Arithmetic-Mahjong-Simulator
 
-算术麻将的 Python 牌局后端、本地真人房间及人机牌桌。普通模式支持点胡、自摸、抢杠、流局结算和手动下一局。已提供 Bot、Arena 与实验训练，以及独立的本地 RL 人机试玩入口；血战暂未实现。
+算术麻将的 Python 牌局后端、本地真人房间及人机牌桌。支持普通与血战模式、点胡、自摸、抢杠、流局结算和手动下一局。已提供 Bot、Arena 与实验训练，以及独立的本地 RL 人机试玩入口。
 
 ## 本地人机试玩
 
@@ -9,21 +9,46 @@
 ```powershell
 py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r multiplayer/requirements-bot.txt
-.\.venv\Scripts\python.exe -m multiplayer.bot_play --port 8772 --model .data/models/rl-3h/snapshots/ppo-0068.npz
+.\.venv\Scripts\python.exe -m multiplayer.bot_play --port 8772 --model .data/models/rl-3h/snapshots/ppo-0068.npz --acfr-model .data/models/cfr-abstract-newrules-1h/policy.json.gz
 ```
 
-上述命令显式选择完成训练的第 68 批，不依赖作者机器上的 RL 缓存。发布时需一同提供下面四份推理导出；其他训练数据、检查点和评测文件均不是游玩依赖：
+上述命令显式选择 RL 第 68 批及累计训练 26,794 局的新版抽象 CFR，不依赖作者机器上的 RL 缓存。发布时需一同提供下面四份推理导出；其他训练数据、检查点和评测文件均不是游玩依赖：
 
 ```text
 .data/models/p4-v1/policy.npz
 .data/models/rl-3h/snapshots/ppo-0068.npz
 .data/models/cfr-mahjong/policy.json.gz
-.data/models/cfr-abstract-v1/policy.json.gz
+.data/models/cfr-abstract-newrules-1h/policy.json.gz
 ```
 
-没有模型时也可运行 `.\.venv\Scripts\python.exe -m multiplayer.bot_play --port 8772 --no-models`，使用基线、数学、搜索和启发式风格策略。
+新抽象 CFR 的目录名沿用训练时的 `-1h`，实际已经续训到累计约五小时。原 `.data/models/cfr-abstract-v1/policy.json.gz` 可保留作旧版对照；省略 `--acfr-model` 时仍加载这个旧默认文件。
 
-访问 [8772 人机试玩](http://127.0.0.1:8772)，创建房间后默认安排你和三家 Bot。房主设置按类别提供全部 25 个配置：基线、数学、搜索、启发式四风格、NN 四风格、RL 四风格、精确/抽象 CFR 各四风格。缺少模型的项禁用，不影响非学习策略开局。拖牌、分组、吃碰杠胡过仍用原操作。默认计时为 t1/t2/t4 各 5 秒、t3 30 秒，可在首局开局前调整或关闭。
+没有模型时也可运行 `.\.venv\Scripts\python.exe -m multiplayer.bot_play --port 8772 --no-models`，使用基础、数学、搜索和启发式风格策略。
+
+访问 [8772 人机试玩](http://127.0.0.1:8772)，创建房间后默认安排你和三家 Bot。房主设置提供以下 8 类、共 25 个配置，名称与 UI 一致：
+
+| UI 分类 | 数量 | 如何决策 |
+| --- | ---: | --- |
+| 基础 | 3 | 摸切、随机、先胡随机，作为简单对手。 |
+| 数学 | 1 | 根据听牌、未见张数和手牌结构进行计算与评分，无需训练模型。 |
+| 搜索 | 1 | 以数学策略为基础，在预算内额外分析少量出牌候选，试算距离、进张并模拟后续对局；当前只对出牌做有限搜索。 |
+| 启发式风格 | 4 | 用手写的推进、牌值、风险和牵制评分形成不同打法，无需训练模型。 |
+| 模仿学习 NN | 4 | 神经网络学习启发式教师给出的动作偏好，使用模仿训练得到的权重。 |
+| 强化学习 RL | 4 | 从模仿模型出发，通过对局奖励和风格目标继续训练神经网络，使用独立的 RL 权重。 |
+| 精确 CFR | 4 | 按较完整的玩家可见观察、个人决策历史和具体合法动作查平均策略表；局面区分细，未见局面回退到对应风格规则。 |
+| 抽象 CFR | 4 | 把相似的可见局面合并为有限类别，学习在“推进、牌值、安全、牵制、均衡”五种选牌规则之间取舍，再由规则选出具体合法动作。 |
+
+表中数量为 4 的类别均提供**速胡、做大、稳守、牵制**四种风格。类别表示实现方法，不是强弱等级。
+
+**NN 和 RL 都使用神经网络。** 这里 UI 中的“NN”特指模仿学习版，主要学习教师怎么选；“RL”则在此基础上根据对局奖励继续调整。两者的游戏内推理结构相同，训练方式和加载的权重不同，RL 不自动代表更强。NN、RL 和两类 CFR 在试玩中都读取冻结模型，不会一边打牌一边继续训练。
+
+**“搜索”会额外做有限的后续对局模拟，“启发式风格”主要通过预设评分体现打法差异。** 搜索只在预算允许时分析少量出牌候选，本身也使用启发式评分；预算不足时会保留数学策略的可用选择。
+
+**精确 CFR 的“精确”指信息集划分更细，不是已经求出了麻将的精确最优解。** 它保留更多可见观察和个人历史，直接学习具体动作的概率；只有再次遇到相同的可见观察、个人决策历史和动作菜单，才能命中原表项。抽象 CFR 主动合并局面、缩短历史，并学习五种选牌规则的概率，查表更容易复用，但会丢失部分细节。两者都只能使用玩家有权知道的信息，不读取真实对手暗牌或未来牌山；当前均为采样训练实验，不代表已获得最优策略。
+
+缺少模型的项会在 UI 中禁用，不影响无需模型的策略开局。拖牌、分组、吃碰杠胡过仍用原操作。默认计时为 t1/t2/t4 各 5 秒、t3 30 秒，可在每局开局前调整或关闭。
+
+房主可在每局开局前修改普通/血战模式、一炮多响和计时；本局进行时锁定，结算后点“下一局”即可重新设置，确认开局后生效并保留累计分数。普通模式同样支持一炮多响开关。血战中胡牌即时结算并退出，第三家胡牌或牌山摸空结束；自摸只向未胡的对手收款，一炮多响分别由点炮者付款。顶部“胡牌记录”可在中途查看结算，整局结束后可在结算页点击“查看牌山”，安排下一局期间仍可回看，确认新开局后关闭。现有 Bot 尚未针对血战单独训练或优化。
 
 可与 RL 长训同时运行：默认重启沿用私有缓存中的冻结 RL，当前已更新为训练器开发验证选中的第 68 轮（最后完成的是第 71 轮）；不读取训练正在更新的别名或检查点，不自动更新。NN 和两类 CFR 各有独立冻结模型。明确传 `--model <编号快照>` 才更换 RL；传训练目录会选最新完成批，不等于验证选中批。`--no-models` 可完全不读模型。只用一个低优先级 CPU 推理进程、不导入 Torch/CUDA，不修改训练源码或输出，但同机仍会有少量资源竞争。当前环境已安装所需依赖，新环境可装 `multiplayer/requirements-bot.txt`，不要改训练虚拟环境。
 
@@ -50,9 +75,12 @@ py -3.13 -m venv .venv
 - ✅ 四人发牌、摸牌、按实体牌出牌、手牌排序和自定义分组。
 - ✅ t1 响应裁决、t2 吃法选择、t3 暗杠/加杠/自摸及超时处理。
 - ✅ 仅加杠可抢的 t4，全部过恢复原 t3 剩余时间；只有合格玩家能操作，倒计时只对本人可见。
-- ✅ 可替换的 RuleAdapter 和普通模式 NormalScoringAdapter。
+- ✅ 可替换的 RuleAdapter、NormalScoringAdapter 与 BloodBattleScoringAdapter。
 - ✅ 最高番胡法、番种明细、赔付、分数变化和 RoundResult。
+- ✅ 本人本局首次出牌前胡牌自动加天胡 3 番；点胡由点炮者付款，自摸由其他仍参与的玩家付款。
+- ✅ 七小对要求七种不同牌各两张，大三元要求至少 9 张符号；数学、搜索、规则风格及抽象 CFR 辅助逻辑已同步。
 - ✅ 一炮多响开关、累计分数、手动开始下一局和庄家固定轮换。
+- ✅ 血战胡牌退出、逐次付款、三家胡牌/流局汇总、即时记录与旧普通快照迁移。
 - ✅ 整理与出牌请求支持旧 t3 窗口校验，非法跨组移动不会产生部分修改。
 - ✅ 完整 GameState 私有快照及 SQLite 原子存储能力；当前开服入口使用内存状态，关服重置。
 - ✅ 本地多人创建/密码加入、十人成员、房主选座开局、四个真人视角、公共/上帝观战、局间换人及座位分数继承。
@@ -65,7 +93,7 @@ py -3.13 -m venv .venv
 - ✅ Bot P4 模仿首版：独立 CUDA 训练、带风格候选网络、CPU 推理、冻结快照与同预算降级。
 - ✅ Bot PPO 实验：风格效用、可见信息 critic、旧策略池、精确行为概率、恢复与独立 RL 模型。
 - ✅ 独立本地全策略人机试玩：25 个配置、NN/RL/CFR 独立冻结模型、默认不更新 RL、单 CPU 进程与预算保底，保留真人命令路径。
-- ❌ 完整搜索/CFR Bot、血战、Access 身份绑定/跨设备找回、Tunnel/公网部署及逐步回放播放器。
+- ❌ 完整搜索/CFR Bot、血战专用策略训练、Access 身份绑定/跨设备找回、Tunnel/公网部署及逐步回放播放器。
 
 ## Bot 离线 Arena
 
@@ -100,9 +128,10 @@ PPO 实验使用 `rl-fast rl-big rl-defensive rl-blocking`，默认模型为 `.d
 ## 后端入口
 
 ```python
-from simulator import ActionType, GameConfig, GameState
+from simulator import ActionType, GameConfig, GameMode, GameState
 
 game = GameState.new_game(config=GameConfig(allow_multiple_hu=False))
+# 血战可指定 GameConfig(mode=GameMode.BLOOD_BATTLE)。
 tile = game.draw_tile(game.current_player().player_id, now=0)
 # 根据当前合法选项提交响应、杠牌、自摸或出牌。
 # 自摸: game.submit_turn_action(player_id, ActionType.HU, now=...)
@@ -128,4 +157,4 @@ GameState 不自行等待时间；外部运行层调用 `expire_timers(now)` 推
 - [Bot 开发与验收日志](test_docs/bot_development_log.md)
 - [评测报告索引](test_docs/README.md)
 - [本地人机试玩、CPU 预算与训练隔离](design_docs/bot_play_design.md)
-- [血战规则草案](design_docs/blood_battle_design.md)
+- [血战规则与实现](design_docs/blood_battle_design.md)

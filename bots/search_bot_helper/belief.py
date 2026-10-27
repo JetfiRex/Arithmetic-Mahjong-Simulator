@@ -6,7 +6,7 @@ from bots.math_bot_helper.analysis import SUPPORTED_RULESET, unseen_counts
 from bots.math_bot_helper.features import values_from_counts
 from simulator.actions import TimeoutConfig
 from simulator.config import GameConfig
-from simulator.game_state import GamePhase, GameState, PlayerState, TileWall
+from simulator.game_state import DiscardRecord, GamePhase, GameState, PlayerState, TileWall
 from simulator.rule_adapter import ArithmeticMahjongRuleAdapter
 
 BELIEF_VERSION = 'uniform-visible-inventory-v1'
@@ -66,6 +66,11 @@ def turn_game(observation, world):
         rule_adapter=ArithmeticMahjongRuleAdapter(min_fan=observation.min_fan),
         config=GameConfig(allow_multiple_hu=observation.allow_multiple_hu),
         turn_window_id='hypothetical-turn', turn_gang_prompt_passed=True, turn_hu_prompt_passed=True)
+    # Claimed discards are absent from rivers but still end heavenly eligibility.
+    for event in observation.history:
+        if event.kind == 'discard' and event.actor in range(4) and event.tile is not None:
+            game.discard_history.append(DiscardRecord(
+                f'p{event.actor}', event.actor, event.tile, len(game.discard_history)))
     # No root HU/kong evaluation is needed: the real candidate contract already
     # supplied legal discards. Subsequent windows are built normally by GameState.
     return game

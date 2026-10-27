@@ -1,4 +1,4 @@
-"""Settlement contracts and payment rules for a normal four-player round."""
+"""Settlement contracts and payment rules for normal and blood-battle rounds."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Any, Protocol, runtime_checkable
 from uuid import uuid4
 
 from simulator.rule_adapter import WinMethod, WinResult
+from simulator.config import GameMode
 
 
 class RoundEndReason(str, Enum):
@@ -50,6 +51,7 @@ class SettlementEvent:
     source_player_id: str | None
     win_result: WinResult
     score_deltas: tuple[ScoreDelta, ...]
+    win_order: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -57,9 +59,24 @@ class SettlementEvent:
             "round_id": self.round_id,
             "winner_id": self.winner_id,
             "source_player_id": self.source_player_id,
+            "win_order": self.win_order,
             "win_result": self.win_result.to_dict(),
             "score_deltas": [delta.to_dict() for delta in self.score_deltas],
         }
+
+
+@dataclass(frozen=True)
+class FinalPlayerState:
+    player_id: str
+    seat: int
+    score: int
+    is_winner: bool
+    is_out: bool
+    win_order: int | None
+    win_settlement_id: str | None
+
+    def to_dict(self):
+        return dict(vars(self))
 
 
 @dataclass(frozen=True)
@@ -72,14 +89,23 @@ class RoundResult:
     settlement_events: tuple[SettlementEvent, ...]
     final_scores: tuple[PlayerScore, ...]
     score_deltas: tuple[ScoreDelta, ...] = ()
+    mode: GameMode = GameMode.NORMAL
+    remaining_player_ids: tuple[str, ...] = ()
+    final_player_states: tuple[FinalPlayerState, ...] = ()
+    event_log: tuple[dict[str, Any], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "round_id": self.round_id,
+            "mode": self.mode.value,
             "end_reason": self.end_reason.value,
             "dealer_seat": self.dealer_seat,
             "next_dealer_seat": self.next_dealer_seat,
             "winner_ids": list(self.winner_ids),
+            "winners_in_order": list(self.winner_ids),
+            "remaining_player_ids": list(self.remaining_player_ids),
+            "final_player_states": [player.to_dict() for player in self.final_player_states],
+            "event_log": [dict(event) for event in self.event_log],
             "settlement_events": [
                 event.to_dict() for event in self.settlement_events
             ],
@@ -112,8 +138,7 @@ class NormalScoringAdapter:
         if type(amount) is not int or amount < 0:
             raise ValueError("Base payment must be a nonnegative integer")
         eligible = context.eligible_payer_ids
-        if len(eligible) != 3 or len(set(eligible)) != 3:
-            raise ValueError("A normal round requires three distinct opponents")
+        self._validate_payers(eligible)
         if context.winner_id in eligible:
             raise ValueError("The winner cannot be a payer")
 
@@ -139,3 +164,15 @@ class NormalScoringAdapter:
                 *(ScoreDelta(player_id, -amount) for player_id in payer_ids),
             ),
         )
+
+    def _validate_payers(self, eligible):
+        if len(eligible) != 3 or len(set(eligible)) != 3:
+            raise ValueError("A normal round requires three distinct opponents")
+
+
+class BloodBattleScoringAdapter(NormalScoringAdapter):
+    """Only the opponents still playing before this win can be charged."""
+
+    def _validate_payers(self, eligible):
+        if not 1 <= len(eligible) <= 3 or len(set(eligible)) != len(eligible):
+            raise ValueError("Blood battle requires one to three distinct active opponents")

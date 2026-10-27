@@ -75,7 +75,7 @@ class AbstractCfrBot:
         if len(planned.choices) == 1:
             self.last_key = None
             return self._explain(planned.choices[0], planned.status, started, 'All legal plans select the same action')
-        vectors = visible_vectors(observation)
+        vectors = self._policy.abstraction.vectors(observation) if self._policy else visible_vectors(observation)
         request = (vectors, observation.phase, observation.source, observation.target_tile,
                    observation.drawn_tile, tuple(sorted(semantic(a) for a in legal_actions)), len(observation.history))
         if request == self._last_request:

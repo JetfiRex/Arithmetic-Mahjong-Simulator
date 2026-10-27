@@ -17,7 +17,7 @@ class WinMethod(str, Enum):
     DISCARD = "点胡"
     SELF_DRAW = "自摸"
     ROB_KONG = "抢杠"
-    HEAVENLY = "天胡"
+    HEAVENLY = "天胡"  # Legacy calculator input; live wins use is_heavenly.
 
 
 @dataclass(frozen=True)
@@ -54,10 +54,13 @@ class HandSnapshot:
 
 @dataclass(frozen=True)
 class WinContext:
+    """Keep the payment method separate from independent fan conditions."""
+
     winner_id: str
     winning_tile: TileValue | None
     win_method: WinMethod
     source_player_id: str | None = None
+    is_heavenly: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -65,6 +68,7 @@ class WinContext:
             "winning_tile": self.winning_tile,
             "win_method": self.win_method.value,
             "source_player_id": self.source_player_id,
+            "is_heavenly": self.is_heavenly,
         }
 
 
@@ -262,6 +266,7 @@ class ArithmeticMahjongRuleAdapter:
             winning_tile=winning_tile_obj,
             winning_method=context.win_method.value,
             should_win_in_mode=True,
+            is_heavenly=context.is_heavenly,
         )
 
     def _error_result(self, context: WinContext, error: str) -> WinResult:

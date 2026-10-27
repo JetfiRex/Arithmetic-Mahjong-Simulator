@@ -18,8 +18,10 @@ from bots.math_bot_helper.features import arithmetic_patterns
 from bots.common_bot_helper.observation import TILE_INDEX, TILE_VALUES
 from simulator.actions import ActionType
 
-VERSION = 'visible-codebooks-legal-plans-v1'
+V1_VERSION = 'visible-codebooks-legal-plans-v1'
+VERSION = 'visible-codebooks-legal-plans-v2'
 CONTRACT = dict(BASE_CONTRACT, information=VERSION)
+_V1_CONTRACT = dict(BASE_CONTRACT, information=V1_VERSION)
 PHASES = ('WAITING_TURN_ACTION', 'WAITING_RESPONSE', 'WAITING_ACTION_DETAIL', 'WAITING_ROB_KONG')
 PLANS = ('progress', 'value', 'safe', 'contain', 'balanced')
 WEIGHTS = ((1., .08, .15, .05, .10), (.55, 1.1, .25, .10, .35),
@@ -50,13 +52,15 @@ def _remove(hand, values):
 
 
 @lru_cache(maxsize=32768)
-def structural(hand, fixed):
+def structural(hand, fixed, *, distinct_pairs=True):
     """One fixed scan of templates, with explicitly optimistic overlap."""
     matches = [0] * 5
     for pattern in arithmetic_patterns():
         n = sum(min(hand[i], need) for i, need in pattern)
         matches[n] += 1
-    pairs = sum(n // 2 for n in hand)
+    # v1 is retained only to encode observations for existing frozen codebooks.
+    # Action plans and newly fitted codebooks use the distinct-pair rule.
+    pairs = sum(n >= 2 for n in hand) if distinct_pairs else sum(n // 2 for n in hand)
     slots = max(0, 3 - fixed)
     progress = (4 * fixed + 2 * min(1, pairs) + 3.5 * min(slots, matches[4])
                 + 1.1 * min(slots, matches[3]) + .2 * math.log1p(matches[2]))
@@ -68,16 +72,18 @@ def structural(hand, fixed):
     return progress, value, min(3, matches[4]), min(3, matches[3]), min(7, pairs)
 
 
-def visible_vectors(observation):
+def visible_vectors(observation, *, version=VERSION):
     """Counts retain multiplicity. Meld order and old discard order are ignored.
 
     Only opponents' most recent actual discards are read from history, including
     claimed discards. They are not counted again in the public inventory.
     """
+    if version not in (V1_VERSION, VERSION):
+        raise ValueError('Unsupported abstract feature version')
     hand = observation.hand_counts
     fixed = _counts(v for m in observation.players[0].melds for v in m.tiles)
     own_melds = len(observation.players[0].melds)
-    shape = structural(hand, own_melds)
+    shape = structural(hand, own_melds, distinct_pairs=version != V1_VERSION)
     own = tuple(n / max(1, cap) for n, cap in zip(hand, observation.tile_supply))
     own += tuple(n / max(1, cap) for n, cap in zip(fixed, observation.tile_supply))
     own += (own_melds / 3, sum(hand) / 14, shape[0] / 16, shape[1] / 14,
@@ -111,7 +117,9 @@ def _centroid(book, vector):
 
 class Abstraction:
     def __init__(self, value):
-        if (value.get('version') != VERSION or value.get('contract') != CONTRACT
+        version = value.get('version')
+        expected_contract = _V1_CONTRACT if version == V1_VERSION else CONTRACT
+        if (version not in (V1_VERSION, VERSION) or value.get('contract') != expected_contract
                 or value.get('plans') != list(PLANS)):
             raise ValueError('Abstract codebook contract mismatch')
         for name, maximum in (('hand', 32), ('public', 64)):
@@ -129,12 +137,15 @@ class Abstraction:
         self.hand_count, self.public_count = len(value['hand']['centers']), len(value['public']['centers'])
         self.bucket_limit = 4 * 4 * 3 * self.hand_count * self.public_count
 
+    def vectors(self, observation):
+        return visible_vectors(observation, version=self.value['version'])
+
     def key(self, observation, style, vectors=None):
         if style not in STYLES or observation.phase not in PHASES:
             raise ValueError('Unsupported abstract style/phase')
         if rule_contract(observation) != self.value['rules']:
             raise ValueError('Abstract rule/supply/scoring mismatch')
-        own, public = vectors or visible_vectors(observation)
+        own, public = vectors or self.vectors(observation)
         initial = max(1, sum(observation.tile_supply) - 52)
         stage = 0 if observation.wall_remaining > initial * 2 / 3 else 1 if observation.wall_remaining > initial / 3 else 2
         h, p = _centroid(self.value['hand'], own), _centroid(self.value['public'], public)

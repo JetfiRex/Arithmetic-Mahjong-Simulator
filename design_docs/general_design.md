@@ -39,7 +39,7 @@
 10. ✅ 支持牌山摸空后的流局。
 11. ✅ 胡牌时调用计番黑箱并生成结算结果。
 12. ✅ 暴露足够清晰的状态快照，供未来前端渲染。（基础快照已实现）
-13. ❌ 支持普通模式与血战模式配置，并按模式决定胡牌后结束还是继续。
+13. ✅ 支持普通模式与血战模式配置，并按模式决定胡牌后结束还是继续。
 14. ✅ 提供手动开始下一局的后端入口，并固定将庄家轮换到下家。（当前房间牌桌已接入结算 UI）
 
 ## 前置准备
@@ -83,10 +83,16 @@ can_gang(hand_snapshot, tile, gang_type) -> ActionCheckResult
 
 - 胡牌玩家。
 - 胡牌牌。
-- 胡牌方式：自摸、点胡、抢杠、天胡。
+- 胡牌方式：自摸、点胡、抢杠；天胡作为独立计番条件。
 - 是否有吃、碰、明杠、暗杠、加杠。
 - 当前可见牌信息。
 - 出牌者，如果是点胡或抢杠。
+
+### ✅ 天胡判定与付款
+
+胡牌者本局尚未打出过任何一张牌时，自动计天胡 3 番，不限庄家，也不要求其他玩家没有出过牌。判定使用本局完整 `discard_history`，已被吃、碰、杠拿走的弃牌仍算本人出过牌；开始下一局后重新判断。
+
+`WinContext.is_heavenly` 独立于 `win_method`，胡牌提示与最终计番使用相同条件。天胡点胡由点炮者付款，天胡自摸仍由其余三家分别付款，抢杠仍由加杠者付款；其他番种和 6 番封顶沿用原规则。计算器保留旧的显式“天胡”输入兼容性。
 
 ### ✅ 判胡与计番黑箱返回格式
 
@@ -163,6 +169,9 @@ discarded_tiles
 score
 is_ready
 is_winner
+is_out
+win_order
+win_settlement_id
 ```
 
 后续可以扩展：
@@ -171,9 +180,8 @@ is_winner
 - 是否托管。
 - 操作计时器。
 - 玩家头像和展示名。
-- 血战模式的 `is_out`、`win_order` 和即时结算引用。
 
-### ❌ GameConfig（普通模式一炮多响配置已实现，模式切换尚未实现）
+### ✅ GameConfig
 
 牌局创建后保持不变的模式配置：
 
@@ -184,7 +192,7 @@ allow_multiple_hu: bool
 
 `allow_multiple_hu = false` 时，同一张弃牌存在多个合法胡牌声明，只保留沿点炮者下家方向距离最近的赢家。开启时全部合法胡牌声明生效。血战模式的详细后续行动规则见 `blood_battle_design.md`。
 
-当前 `simulator/config.py` 已实现不可变的 `GameConfig(allow_multiple_hu=True)`，可以通过 `GameState.new_game(config=...)` 注入。当前只运行普通模式，尚未定义 `GameMode` 或 `mode` 字段。
+当前 `simulator/config.py` 已实现不可变的 `GameConfig(allow_multiple_hu=True, mode=GameMode.NORMAL)`，可以通过 `GameState.new_game(config=...)` 注入。普通模式仍为默认值，血战用 `GameMode.BLOOD_BATTLE`；房间每局进行时锁定配置，安排下一局时可修改，确认开局后应用新的规则、计时及内置结算器。
 
 ### ❌ GameState（部分实现）
 
@@ -283,10 +291,10 @@ get_legal_actions(game_state, player_id) -> list[ActionOption]
 2. 是否允许多人同时胡牌由 `GameConfig.allow_multiple_hu` 决定。
 3. 杠优先于碰。
 4. 碰优先于吃。
-5. 吃只能由下家响应。
+5. 吃只能由下家响应，血战中跳过已经退出的玩家。
 6. 多个碰或杠同时发生时，按规则中“逆时针离出牌家最近者”优先。
 
-### ✅ ScoringAdapter（普通模式）
+### ✅ ScoringAdapter（普通与血战）
 
 结算适配层。
 
@@ -303,13 +311,14 @@ get_legal_actions(game_state, player_id) -> list[ActionOption]
 代码中已经定义不可变的 `SettlementContext`、`SettlementEvent`、`RoundResult`、`ScoreDelta`、`PlayerScore` 和 `ScoringAdapter` Protocol。默认 `NormalScoringAdapter` 已接入 GameState，并支持注入其他结算器。
 
 - ✅ 点胡由点炮者支付一份 `base_payment`。
-- ✅ 自摸由其他三家各支付一份 `base_payment`。
+- ✅ 普通模式自摸由其他三家各支付一份 `base_payment`，血战只由尚未胡牌的对手付款。
 - ✅ 一炮多响为每位赢家生成独立的 `SettlementEvent`，点炮者分别付款。
 - ✅ 抢杠由加杠者向每位赢家付款；保留原碰组，不完成加杠或补牌。
-- ✅ 流局生成空赢家结果，四位玩家的本局 `score_deltas` 均为 0。
+- ✅ 普通流局生成空赢家结果；血战流局保留此前全部赢家和即时分数，不产生额外赔付。
 - ✅ 结算器直接消费 RuleAdapter 的基础赔付，不重复计算番数或硬编码番种。
 - ✅ 更新分数前先验证全部赢家的结算记录和收支平衡；结算失败不会只更新部分玩家的分数。
-- ❌ 诈胡和血战付款尚未实现。
+- ✅ `BloodBattleScoringAdapter` 支持 1～3 位有效对手，退出后不再收付款。
+- ❌ 诈胡赔付尚未实现。
 
 ## 一局游戏流程
 
@@ -423,12 +432,12 @@ round_result
 旧单人试牌、四人开发者及存档调试入口已于 2026-10-26 移除，历史设计见 `ui_prototype_design.md`。现用入口为 `multiplayer.web` 真人房间和 `multiplayer.bot_play` 人机试玩，共用 `UI/static/` 牌桌。
 
 - ✅ 四席牌桌、实体牌选择、拖动/分组、吃碰杠胡过、结算与下一局。
-- ✅ 开局前配置计时、首局后锁定，默认 t1/t2/t4 为 5 秒、t3 为 30 秒；配置位于 `multiplayer/settings.py`。
+- ✅ 每局开局前配置模式、多响及计时，本局中锁定，局间可修改；默认 t1/t2/t4 为 5 秒、t3 为 30 秒，计时配置位于 `multiplayer/settings.py`。
 - ✅ 跨组移动失败原子保证及旧操作窗口校验，服务端定期推进计时。
 - ✅ 房间和人机运行层复用规则引擎，人机接入保留真人命令合同。
 - ✅ 核心快照与 SQLite 存储能力保留，当前两个服务每次开服重置，不载入旧存档。
 
-个人断线、暂停与默认托管见 `hosting_design.md`；策略 Bot 与训练见 `bot_design.md`。Access、Tunnel/公网、完整回放和血战仍未完成。
+个人断线、暂停与默认托管见 `hosting_design.md`；策略 Bot 与训练见 `bot_design.md`。血战已接入房间模式选择、即时记录和已胡只读状态，血战专用策略训练暂缓。Access、Tunnel/公网和完整回放仍未完成。
 
 ## 暂缓事项
 
@@ -457,7 +466,7 @@ round_result
 7. ✅ 实现动作优先级裁决。
 8. ✅ 接入胡牌和计番黑箱，普通点胡、自摸结算均通过 RuleAdapter。
 9. ✅ 生成 SettlementEvent 和 RoundResult，并在公开快照中提供结算明细。
-10. ❌ 接入普通/血战模式和退出玩家后的继续流程。（普通模式及一炮多响配置已实现，血战尚未实现）
+10. ✅ 接入普通/血战模式和退出玩家后的继续流程。
 11. ✅ 实现手动开始下一局和庄家固定轮换。
 12. ✅ 用确定牌山从发牌、摸牌、自摸跑到结算，并测试点胡、流局和下一局。
 13. ❌ 加入极简 AI。

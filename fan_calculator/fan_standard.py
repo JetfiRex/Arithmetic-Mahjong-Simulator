@@ -83,7 +83,7 @@ def count_kezi(hand: Hand) -> int:
 
 def check_da_san_yuan(hand: Hand) -> Optional[FanResult]:
     symbol_count = sum(1 for tile in get_all_tiles_for_fan(hand) if tile.value in SYMBOLS)
-    if symbol_count >= 8:
+    if symbol_count >= 9:
         return FanResult(FanType.DA_SAN_YUAN)
     return None
 

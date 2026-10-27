@@ -5,7 +5,7 @@ from fan_calculator.fan_base import FanResult, FanResults, FanType
 
 
 def check_tian_hu(hand: Hand) -> Optional[FanResult]:
-    if hand.winning_method == "天胡":
+    if hand.is_heavenly or hand.winning_method == "天胡":
         return FanResult(FanType.TIAN_HU)
     return None
 

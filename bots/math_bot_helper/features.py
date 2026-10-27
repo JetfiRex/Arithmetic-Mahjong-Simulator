@@ -74,6 +74,30 @@ def progression_patterns():
                  if all(start + step * k in TILE_INDEX for k in range(7)))
 
 
+def seven_pairs_target(hand, fixed, capacity):
+    """Minimum additions for seven distinct pairs, respecting fixed meld tiles.
+
+    Return (cost, concealed target counts), or None if visible inventory cannot
+    supply a target. Each whole-hand value occurs zero or exactly twice.
+    """
+    size = 14 - sum(fixed)
+    if size < 0 or any(n > 2 for n in fixed):
+        return None
+    dp = {0: (0, ())}
+    for h, m, cap in zip(hand, fixed, capacity):
+        nxt = {}
+        for used, (cost, path) in dp.items():
+            for whole in (0, 2):
+                n = whole - m
+                if not 0 <= n <= min(cap, size - used):
+                    continue
+                candidate = cost + max(0, n - h), path + (n,)
+                if used + n not in nxt or candidate[0] < nxt[used + n][0]:
+                    nxt[used + n] = candidate
+        dp = nxt
+    return dp.get(size)
+
+
 @lru_cache(maxsize=32768)
 def _arithmetic_partition(counts, groups):
     if groups == 0:
@@ -202,16 +226,17 @@ class ShapePotential:
 def shape_potential(counts, melds, unseen):
     arithmetic = _group_score(counts, len(melds), unseen, 'arithmetic')
     traditional = _group_score(counts, 0, unseen, 'traditional') if not melds else 0.0
-    combined = list(counts)
-    for meld in melds:
-        for tile in meld.tiles:
-            combined[TILE_INDEX[tile]] += 1
+    fixed = counts_from_values(v for meld in melds for v in meld.tiles)
+    combined = [h + m for h, m in zip(counts, fixed)]
     seven = progression = dragon = 0.0
     if sum(combined) == 13:
-        seven = sum(n // 2 for n in combined) * 2
-        seven += min(1.0, sum(.2 for i, n in enumerate(combined) if n % 2 and unseen[i]))
+        if all(n <= 2 for n in fixed):
+            seven = sum(n >= 2 for n in combined) * 2
+            seven += min(1.0, sum(.2 for i, n in enumerate(combined) if n == 1 and unseen[i]))
         for pattern in progression_patterns():
-            if all(combined[i] + unseen[i] >= n for i, n in pattern):
+            target = dict(pattern)
+            if (all(n <= target.get(i, 0) for i, n in enumerate(fixed))
+                    and all(combined[i] + unseen[i] >= n for i, n in pattern)):
                 progression = max(progression, .95 * sum(min(combined[i], n) for i, n in pattern))
         for pair in (None, *(i for i, n in enumerate(combined) if n >= 2)):
             rest = combined.copy()

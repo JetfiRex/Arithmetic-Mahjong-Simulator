@@ -9,6 +9,7 @@ window.localMultiplayer = {
   settingsRevision: null,
   reviewKey: null,
   reviewRequest: 0,
+  settlementKey: null,
   recoveryShownFor: null,
   socket: null,
   socketBoot: null,
@@ -74,6 +75,9 @@ window.localMultiplayer = {
 
   initialize() {
     this.initialized = true;
+    $("local-rule-mode").onchange = () => {
+      $("local-blood-bot-note").hidden = !state.bot_play || $("local-rule-mode").value !== "blood_battle";
+    };
     $("bot-add").onclick = () => send("add_bot", { profile: !state.bot_play?.profile_states || state.bot_play.profile_states["rl-fast"]?.available ? "rl-fast" : "fast" });
     $("room-resume").onclick = async () => {
       if (!await send("resume_room", { recovery_id: state.room?.recovery?.recovery_id })) $("room-recovery-error").textContent = $("toast").textContent;
@@ -84,6 +88,12 @@ window.localMultiplayer = {
     stack.replaceWith(wallButton); wallButton.append(stack); wallButton.onclick = () => this.openWallReview();
     document.title = "算术麻将 · 本地多人";
     const tools = document.querySelector(".header-tools");
+    const settlements = element("button", "tool-button", "胡牌记录"); settlements.id = "local-settlements";
+    settlements.hidden = true; settlements.onclick = showResult; tools.prepend(settlements);
+    const resultWall = element("button", "secondary-button", "查看牌山");
+    resultWall.id = "result-wall-review"; resultWall.type = "button"; resultWall.hidden = true;
+    resultWall.onclick = () => { $("result-dialog").close(); this.openWallReview(); };
+    $("next-round-button").before(resultWall);
     const newWindow = element("button", "tool-button", "新测试窗口");
     newWindow.id = "local-new-window"; newWindow.prepend(icon("plus")); newWindow.title = "打开独立身份的本地测试窗口";
     newWindow.onclick = () => window.open("/", "_blank", "noopener"); tools.prepend(newWindow);
@@ -118,7 +128,7 @@ window.localMultiplayer = {
       document.querySelectorAll(".local-timer-setting").forEach((row) => {
         timeouts[row.dataset.field] = $("local-timers-enabled").checked && row.querySelector("[type=checkbox]").checked ? Number(row.querySelector("[type=number]").value) : null;
       });
-      if (await send("start", { seats: this.seats(), timeouts, allow_multiple_hu: $("local-multiple-hu").checked, room_revision: this.settingsRevision })) $("local-settings").close();
+      if (await send("start", { seats: this.seats(), timeouts, mode: $("local-rule-mode").value, allow_multiple_hu: $("local-multiple-hu").checked, room_revision: this.settingsRevision })) $("local-settings").close();
       else $("local-settings-error").textContent = $("toast").textContent;
     };
   },
@@ -135,7 +145,7 @@ window.localMultiplayer = {
   },
 
   async openWallReview() {
-    if (state.room?.phase !== "REVIEWING" || ui().recovery_pending) return;
+    if (!["REVIEWING", "ARRANGING"].includes(state.room?.phase) || ui().recovery_pending) return;
     const key = `${state.room.room_id}:${state.round_id}:${state.room.phase}`;
     const request = ++this.reviewRequest;
     const dialog = $("wall-review-dialog");
@@ -176,6 +186,11 @@ window.localMultiplayer = {
   },
 
   renderActions() {
+    if (stage() === "WON") {
+      $("action-status").textContent = `已胡牌 · 第 ${me().win_order} 位 · 等待其余玩家`;
+      action("查看胡牌记录", showResult, "primary");
+      return true;
+    }
     if (state.network?.enabled && !this.connectionId) {
       $("action-status").textContent = "正在恢复连接";
       return true;
@@ -198,6 +213,7 @@ window.localMultiplayer = {
     const review = state.room.phase === "REVIEWING";
     $("action-status").textContent = review ? "赛后查看" : "等待房主安排下一局";
     action("查看结算", showResult);
+    action("查看牌山", () => this.openWallReview());
     if (state.room.is_host) action(review ? "下一局" : "安排下一局", () => review ? this.nextRound() : this.openSettings(), "primary", false, "arrow-right");
     return true;
   },
@@ -232,11 +248,13 @@ window.localMultiplayer = {
     $("local-timers-enabled").checked = Object.values(ui().timeout_settings).some((value) => value !== null);
     $("local-timers-enabled").disabled = ui().settings_locked;
     $("local-multiple-hu").checked = state.room.allow_multiple_hu; $("local-multiple-hu").disabled = ui().settings_locked;
+    $("local-rule-mode").value = state.room.mode || "normal"; $("local-rule-mode").disabled = ui().settings_locked;
+    $("local-rule-mode").onchange();
     $("local-save-seats").disabled = active;
     $("local-start").disabled = active || state.room.members.length < 4;
     $("local-start").firstChild.textContent = ui().started ? "确认开局 " : "开始本局 ";
     $("local-settings-title").textContent = state.room.phase === "ARRANGING" ? "安排下一局" : "房主设置";
-    $("local-settings-status").textContent = active ? "本局座位和配置已锁定" : ui().settings_locked ? "可重新安排四个座位；计时与规则沿用首局配置" : `${state.room.members.length} / 10 人 · 需要四个不同的成员`;
+    $("local-settings-status").textContent = active ? "本局座位和配置已锁定；结束后可在下一局修改" : `${state.room.members.length} / 10 人 · 座位、模式、一炮多响和计时将在确认开局时生效`;
     this.syncTimers();
     this.renderBotSettings();
     if (!$("local-settings").open) $("local-settings").showModal();
@@ -352,12 +370,17 @@ window.localMultiplayer = {
       if (room?.phase === "ARRANGING" && $("result-dialog").open) $("result-dialog").close();
       if (room?.phase === "REVIEWING" && $("local-settings").open) $("local-settings").close();
     }
-    $("local-wall-button").disabled = room?.phase !== "REVIEWING" || !!ui().recovery_pending;
-    $("local-wall-button").title = room?.phase === "REVIEWING" && !room.wall_review_available ? "本局无完整牌序记录" : "查看本局牌山";
+    const canReview = ["REVIEWING", "ARRANGING"].includes(room?.phase);
+    $("local-wall-button").disabled = !canReview || !!ui().recovery_pending;
+    $("local-wall-button").title = canReview && !room.wall_review_available ? "本局无完整牌序记录" : "查看本局牌山";
+    $("result-wall-review").hidden = !canReview;
+    $("result-wall-review").disabled = !!ui().recovery_pending;
+    $("result-wall-review").title = canReview && !room.wall_review_available ? "本局无完整牌序记录" : "查看本局完整牌序";
     $("local-wall-button").setAttribute("aria-label", $("local-wall-button").title);
     $("local-entry").hidden = !!room;
     document.querySelector(".workspace").hidden = !room;
-    $("mode-label").textContent = state.bot_play ? "人机试玩" : state.network?.enabled ? "联机试玩" : "本地多人";
+    $("mode-label").textContent = (state.bot_play ? "人机试玩" : state.network?.enabled ? "联机试玩" : "本地多人")
+      + (state.config?.mode === "blood_battle" ? " · 血战" : "");
     $("entry-title").textContent = state.bot_play ? "人机房间" : state.network?.enabled ? "联机房间" : "本地房间";
     $("entry-submit").disabled = !!state.network?.enabled && !this.connectionId;
     $("restart-button").disabled = !room?.is_host || room.phase === "REVIEWING";
@@ -367,6 +390,15 @@ window.localMultiplayer = {
     $("discard-label").textContent = viewerId() ? "我的弃牌" : `${me().name}的弃牌`;
     $("discard-river").setAttribute("aria-label", $("discard-label").textContent);
     if (stage() === "OBSERVING" || stage() === "WAITING_OTHER") $("stage-label").textContent = `${state.players[state.current_turn_seat].name} · ${visiblePhase() || "等待"}`;
+    if (stage() === "WON") $("stage-label").textContent = `已胡牌 · 第 ${me().win_order} 位`;
+    const settlements = $("local-settlements"), count = state.settlement_events?.length || 0;
+    settlements.hidden = state.config?.mode !== "blood_battle" || !count;
+    settlements.textContent = `胡牌记录 (${count}/3)`;
+    const settlementKey = `${state.round_id}:${count}:${state.round_result?.end_reason || ""}`;
+    if (this.settlementKey !== settlementKey) {
+      this.settlementKey = settlementKey;
+      if (!settlements.hidden && $("result-dialog").open) showResult();
+    }
     if (room?.phase === "REVIEWING") $("stage-label").textContent = "赛后查看";
     if (room?.phase === "ARRANGING") $("stage-label").textContent = "安排下一局";
     if (ui().recovery_pending) $("stage-label").textContent = ui().connection_paused ? "等待重连 · 全桌暂停" : "对局已暂停";

@@ -22,6 +22,8 @@
     <div id="local-seats" class="local-seats"></div>
     <div class="timer-settings-heading"><h3>操作计时</h3><label class="switch-label"><input type="checkbox" id="local-timers-enabled" checked>启用计时</label></div>
     <div id="local-timer-settings" class="timer-settings"></div>
+    <label class="local-multiple">牌局模式<select id="local-rule-mode"><option value="normal">普通模式 · 一次胡牌结束</option><option value="blood_battle">血战模式 · 三家胡牌或流局结束</option></select></label>
+    <p id="local-blood-bot-note" class="setup-status" hidden>血战尚无专用 Bot；数学、搜索、NN/RL 等会使用兼容降级行为。</p>
     <label class="local-multiple"><input id="local-multiple-hu" type="checkbox" checked>允许一炮多响</label>
     <p id="local-settings-status" class="setup-status"></p>
     <p id="local-settings-error" class="inline-error" role="alert"></p>

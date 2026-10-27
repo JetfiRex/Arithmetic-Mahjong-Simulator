@@ -14,7 +14,8 @@ import time
 import unicodedata
 from uuid import uuid4
 
-from simulator import ActionType, GameConfig, GamePhase, GameState, PlayerState, TileWall
+from simulator import (ActionType, BloodBattleScoringAdapter, GameConfig, GameMode,
+                       GamePhase, GameState, NormalScoringAdapter, PlayerState, TileWall)
 from simulator.game_state import GameStateError
 from multiplayer.settings import DEFAULT_TIMEOUTS, parse_timeouts
 from multiplayer.round_review import RecordingRandom, RoundWallRecord
@@ -84,6 +85,7 @@ class Room:
     wall_records: dict[str, RoundWallRecord] = field(default_factory=dict)
     timeouts: dict = field(default_factory=lambda: dict(vars(DEFAULT_TIMEOUTS)))
     allow_multiple_hu: bool = True
+    mode: GameMode = GameMode.NORMAL
     hand_revisions: dict[str, int] = field(default_factory=dict)
     hand_signatures: dict[str, str] = field(default_factory=dict)
     seen_commands: OrderedDict = field(default_factory=OrderedDict)
@@ -200,23 +202,34 @@ class LocalRooms:
                 settings = parse_timeouts(command.get("timeouts"))
                 multiple = command.get("allow_multiple_hu")
                 _check(type(multiple) is bool, "请指定是否允许一炮多响")
+                mode = command.get("mode", room.mode.value)
+                _check(type(mode) is str and mode in {item.value for item in GameMode}, "未知牌局模式")
+                mode = GameMode(mode)
+                rules = GameConfig(allow_multiple_hu=multiple, mode=mode)
                 rng = RecordingRandom()
                 if room.game is not None:
                     _check(command.get("round_id") == room.game.round_id, "上一局已变化")
-                    _check(dict(vars(settings)) == room.timeouts and multiple == room.allow_multiple_hu, "本房间开局配置已锁定，需要更改请新建房间")
                     room.game.start_next_round(source_round_id=room.game.round_id, rng=rng)
+                    # The new round is dealt but has not drawn or opened a timer.
+                    # Apply its rules together under the room lock, preserving
+                    # the completed result until the host actually confirms start.
+                    room.game.config, room.game.timeout_config = rules, settings
+                    if type(room.game.scoring_adapter) in (NormalScoringAdapter, BloodBattleScoringAdapter):
+                        room.game.scoring_adapter = (BloodBattleScoringAdapter() if mode == GameMode.BLOOD_BATTLE
+                                                    else NormalScoringAdapter())
                     for index, player in enumerate(room.game.players):
                         player.name = room.members[seats[index]].name
                 else:
                     room.game = GameState.new_game(
                         player_names=[room.members[member_id].name for member_id in seats],
-                        timeout_config=settings, config=GameConfig(allow_multiple_hu=multiple),
+                        timeout_config=settings, config=rules,
                         rng=rng,
                     )
                 for player in room.game.players:
                     player.is_human = True
                 room.seats, room.round_members = list(seats), list(seats)
                 room.timeouts, room.allow_multiple_hu = dict(vars(settings)), multiple
+                room.mode = mode
                 room.round_number += 1
                 room.wall_records[room.game.round_id] = RoundWallRecord.begin(room.game, room.round_number, rng)
                 room.phase = RoomPhase.PLAYING
@@ -226,7 +239,8 @@ class LocalRooms:
                 _check(is_host, "只有房主可以结束赛后查看")
                 _check(room.game is not None and command.get("round_id") == room.game.round_id, "该操作属于旧牌局")
                 _check(room.phase == RoomPhase.REVIEWING and room.game.round_result is not None, "当前不在赛后查看阶段")
-                # Closing review does not shuffle, deal, rotate or change scores.
+                # Arranging does not shuffle or deal; the completed wall remains
+                # reviewable until the host actually confirms the next start.
                 room.phase = RoomPhase.ARRANGING
                 room.revision += 1
             elif kind in {"assign", "kick", "leave"}:
@@ -285,7 +299,7 @@ class LocalRooms:
             _check(client.member_id in room.members, "你已不在该房间")
             _check(not room.recovery_pending, "房间已暂停，请先恢复")
             _check(room.game is not None and room.game.round_id == round_id, "只能查看当前结算局的牌山")
-            _check(room.phase == RoomPhase.REVIEWING and room.game.phase == GamePhase.ROUND_ENDED
+            _check(room.phase in {RoomPhase.REVIEWING, RoomPhase.ARRANGING} and room.game.phase == GamePhase.ROUND_ENDED
                    and room.game.round_result is not None, "仅在正常结算后的赛后查看阶段开放牌山")
             record = room.wall_records.get(round_id)
             _check(record is not None and record.valid, "本局无完整牌序记录")
@@ -357,6 +371,8 @@ class LocalRooms:
                 stage = "LOBBY"
             elif ended:
                 stage = "ROUND_ENDED"
+            elif pid is not None and game.get_player(pid).is_out:
+                stage = "WON"
             elif pid is None:
                 stage = "OBSERVING"
             elif game.phase == GamePhase.WAITING_TURN_ACTION:
@@ -372,15 +388,20 @@ class LocalRooms:
                     "room_id": room.room_id, "name": room.name, "host_id": room.host_id,
                     "revision": room.revision, "seats": list(room.seats),
                     "phase": room.phase.value,
-                    "wall_review_available": room.phase == RoomPhase.REVIEWING and game.round_id in room.wall_records and room.wall_records[game.round_id].valid,
+                    "wall_review_available": room.phase in {RoomPhase.REVIEWING, RoomPhase.ARRANGING}
+                        and ended and game.round_result is not None
+                        and game.round_id in room.wall_records and room.wall_records[game.round_id].valid,
                     "round_members": list(room.round_members), "is_host": room.host_id == client.member_id,
                     "members": [{"member_id": person.member_id, "name": person.name, "spectator_mode": person.spectator_mode} for person in room.members.values()],
                     "spectator_mode": member.spectator_mode, "allow_multiple_hu": room.allow_multiple_hu,
+                    "mode": room.mode.value,
                 },
                 ui={"stage": stage, "mode": "four", "started": started,
                     "round_number": room.round_number if room else 0,
-                    "settings_locked": started, "timeout_settings": room.timeouts if room else dict(vars(DEFAULT_TIMEOUTS)),
-                    "grouping_allowed": pid is not None and game.phase == GamePhase.WAITING_TURN_ACTION,
+                    "settings_locked": room is not None and room.phase not in {RoomPhase.WAITING_PLAYERS, RoomPhase.ARRANGING},
+                    "timeout_settings": room.timeouts if room else dict(vars(DEFAULT_TIMEOUTS)),
+                    "grouping_allowed": pid is not None and not game.get_player(pid).is_out
+                        and game.phase == GamePhase.WAITING_TURN_ACTION,
                     "editing_allowed": False, "scene": "", "scenes": {}, "phase_history": [],
                     "drawn_tile_id": game.drawn_tile_id if pid == game.current_player().player_id else None},
             )

@@ -7,7 +7,7 @@ arithmetic decomposition. Fan-table floors are estimates until oracle-verified.
 from dataclasses import dataclass
 from functools import lru_cache
 
-from bots.math_bot_helper.features import counts_from_values, progression_patterns
+from bots.math_bot_helper.features import counts_from_values, progression_patterns, seven_pairs_target
 from bots.common_bot_helper.observation import TILE_VALUES
 from fan_calculator.fan_base import FanType, MAX_FAN
 
@@ -35,6 +35,8 @@ def target_missing(target, hand, melds, stock):
     fixed = fixed_counts(melds)
     goal = tuple(w - m for w, m in zip(target.whole, fixed))
     if (sum(fixed) + (3 - len(melds)) * 4 + 2 != 14
+            or (target.family in ('七小对', '连七对')
+                and (sum(target.whole) != 14 or any(n not in (0, 2) for n in target.whole)))
             or any(n < 0 or n > h + u for n, h, u in zip(goal, hand, stock))):
         return None
     return sum(max(0, n - h) for n, h in zip(goal, hand))
@@ -59,16 +61,12 @@ def _seven_pairs(hand, melds, stock):
     size = 14 - sum(fixed)
     if size != (3 - len(melds)) * 4 + 2:
         return None
-    dp = {0: (0, ())}
-    for h, m, u in zip(hand, fixed, stock):
-        nxt = {}
-        for used, (cost, path) in dp.items():
-            for n in range(m % 2, min(h + u, size - used) + 1, 2):
-                candidate = cost + max(0, n - h), path + (n + m,)
-                if used + n not in nxt or candidate[0] < nxt[used + n][0]:
-                    nxt[used + n] = candidate
-        dp = nxt
-    return BigTarget('七小对', dp[size][1], FanType.QI_XIAO_DUI.fan_value) if size in dp else None
+    result = seven_pairs_target(hand, fixed, tuple(h + u for h, u in zip(hand, stock)))
+    if result is None:
+        return None
+    _, concealed = result
+    whole = tuple(n + m for n, m in zip(concealed, fixed))
+    return BigTarget('七小对', whole, FanType.QI_XIAO_DUI.fan_value)
 
 
 def choose_target(hand, melds, stock, wall_remaining, min_fan, previous=None):

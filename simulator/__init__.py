@@ -26,7 +26,7 @@ from simulator.action_options import (
     is_valid_chi_selection,
 )
 from simulator.action_resolver import resolve_response_requests
-from simulator.config import GameConfig
+from simulator.config import GameConfig, GameMode
 from simulator.game_state import (
     DiscardRecord,
     GamePhase,
@@ -52,6 +52,8 @@ from simulator.rule_adapter import (
     WinResult,
 )
 from simulator.settlement import (
+    BloodBattleScoringAdapter,
+    FinalPlayerState,
     NormalScoringAdapter,
     PlayerScore,
     RoundEndReason,
@@ -87,6 +89,7 @@ __all__ = [
     "DiscardRecord",
     "GamePhase",
     "GameConfig",
+    "GameMode",
     "GameState",
     "FanItem",
     "HandSnapshot",
@@ -97,6 +100,8 @@ __all__ = [
     "PlayerState",
     "PlayerScore",
     "NormalScoringAdapter",
+    "BloodBattleScoringAdapter",
+    "FinalPlayerState",
     "ResolvedAction",
     "RobKongWindow",
     "ResponseWindow",
