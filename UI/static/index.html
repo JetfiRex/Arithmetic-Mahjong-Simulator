@@ -4,26 +4,46 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#183d32">
-  <title>算术麻将 · 开发者牌局</title>
+  <title>算术麻将 · 单机版</title>
   <link rel="icon" href="/tiles/app_icon.png">
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/singleplayer.css">
+  <script src="/client.js" defer></script>
+  <script src="/practice.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
-<body>
-  <header class="app-header">
-    <a class="brand" href="/" aria-label="算术麻将开发者牌局"><img src="/tiles/app_icon.png" alt=""><span>算术麻将<small id="mode-label">开发者牌局</small></span></a>
+<body class="single-player" data-screen="home">
+  <main id="mode-home" class="mode-home" aria-labelledby="home-title">
+    <div class="home-inner">
+      <div class="home-brand"><img src="/tiles/app_icon.png" alt="算术麻将标志" width="104" height="104"><div><p class="home-eyebrow">ARITHMETIC MAHJONG</p><h1 id="home-title">算术麻将</h1><p class="home-tagline">算术麻将是一个开放世界冒险桌游！</p></div></div>
+      <div class="home-section-heading"><h2>选择你的模式</h2><span>学习 · 对局 · 分析 · 练习</span></div>
+      <nav class="mode-grid" aria-label="选择模式">
+        <button class="mode-card" data-mode="tutorial"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#book-open"></use></svg><span class="mode-badge">界面预览</span></span><strong>新手教程</strong><span class="mode-description">跟随一场示范局，逐步认识算术麻将。</span><span class="mode-card-link">查看示范局 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></span></button>
+        <button class="mode-card mode-card--play" data-mode="normal"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#layers"></use></svg><span class="mode-badge" id="normal-mode-badge">开始对局</span></span><strong>普通模式</strong><span class="mode-description">与三家 Bot 同桌，按自己的节奏认真打一局。</span><span class="mode-card-link" id="normal-mode-link">进入牌桌 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></span></button>
+        <button class="mode-card" data-mode="teaching"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#compass"></use></svg><span class="mode-badge">界面预览</span></span><strong>教学模式</strong><span class="mode-description">在对局中借助听牌、出牌和向听辅助。</span><span class="mode-card-link">查看辅助牌桌 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></span></button>
+        <button class="mode-card" data-mode="calculator"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#calculator"></use></svg><span class="mode-badge">界面预览</span></span><strong>计算模式</strong><span class="mode-description">从 13 张手牌出发，查看完整牌型分析。</span><span class="mode-card-link">查看分析工具 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></span></button>
+        <button class="mode-card" data-mode="practice"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#target"></use></svg><span class="mode-badge">开始练习</span></span><strong>听牌练习</strong><span class="mode-description">观察 13 张手牌，判断听什么，或者不能听。</span><span class="mode-card-link">进入练习 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></span></button>
+      </nav>
+      <p id="home-game-notice" class="home-game-notice" role="status" hidden></p>
+      <footer class="home-footer"><span>单机版 · 离线游玩</span><span>教程、教学与计算模式内容准备中</span></footer>
+    </div>
+  </main>
+
+  <header class="app-header" id="app-header" hidden>
+    <a class="brand" href="#home" aria-label="返回算术麻将首页"><img src="/tiles/app_icon.png" alt=""><span>算术麻将<small id="mode-label">普通模式</small></span></a>
     <div class="header-meta"><span class="connection-dot" id="connection-dot"></span><span id="round-label">第 1 次试牌</span><span class="quiet-tag" id="clock-label">无计时</span></div>
     <div class="header-tools">
+      <a class="home-button" href="#home"><svg class="icon"><use href="/assets/icons.svg#arrow-left"></use></svg><span>返回首页</span></a>
       <label class="scene-select"><svg class="icon"><use href="/assets/icons.svg#flask"></use></svg><select id="scene-select" aria-label="试牌场景"></select></label>
       <button class="icon-button" id="restart-button" title="开局设置" aria-label="开局设置"><svg class="icon"><use href="/assets/icons.svg#refresh"></use></svg></button>
-      <button class="icon-button mobile-only" id="developer-toggle" title="打开牌堆" aria-label="打开牌堆"><svg class="icon"><use href="/assets/icons.svg#layers"></use></svg></button>
+      <button class="icon-button mobile-only" id="developer-toggle" title="对手信息" aria-label="对手信息"><svg class="icon"><use href="/assets/icons.svg#layers"></use></svg></button>
     </div>
   </header>
 
-  <div class="workspace">
+  <div class="workspace" id="normal-workspace" hidden>
     <main class="play-area">
-      <section class="table-surface" aria-label="开发者牌桌">
-        <div class="table-topline"><span class="table-mode" id="table-mode">DEVELOPER <span>四人开发者局</span></span><span id="wall-counter">牌山 —</span></div>
+      <section class="table-surface" aria-label="单机牌桌">
+        <div class="table-topline"><span class="table-mode" id="table-mode">SINGLE PLAYER <span>单机人机对局</span></span><span id="wall-counter">牌山 —</span></div>
         <div id="opponent-seats" class="opponent-seats" hidden></div>
         <div class="table-center">
           <div class="stack-area"><div class="deck-stack"><span></span><span></span><span></span></div><span class="zone-caption">牌堆</span></div>
@@ -37,11 +57,9 @@
       <section class="hand-surface" aria-label="我的手牌">
         <div class="hand-topline"><div class="hand-title"><h1>我的手牌</h1><span id="hand-count">13 张</span></div><div class="hand-tools">
           <div class="segmented" role="group" aria-label="牌的显示方式"><button id="face-mode" class="active" title="显示原始牌面">牌面</button><button id="number-mode" title="显示算术数值">数字</button></div>
-          <button class="tool-button" id="group-mode" title="选择要分组的牌；也可右键选择"><svg class="icon"><use href="/assets/icons.svg#group"></use></svg><span>组牌</span></button>
           <button class="icon-button" id="edit-hand" title="编辑手牌" aria-label="编辑手牌"><svg class="icon"><use href="/assets/icons.svg#pencil"></use></svg></button>
         </div></div>
         <div id="hand-scroll" class="hand-scroll"><div id="hand-regions" class="hand-regions"></div></div>
-        <div class="selection-bar" id="selection-bar" hidden><span id="selection-count"></span><button class="small-button" id="confirm-group"><svg class="icon"><use href="/assets/icons.svg#plus"></use></svg>分为一组</button><button class="icon-button" id="clear-selection" title="取消选牌" aria-label="取消选牌"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div>
         <div class="action-strip"><div id="action-status" class="action-status"></div><div id="actions" class="actions"></div></div>
         <div id="chi-options" class="chi-options"></div>
       </section>
@@ -49,14 +67,70 @@
       <section class="flow-monitor" id="flow-monitor" aria-label="阶段记录" hidden><div id="phase-steps" class="phase-steps"></div><div id="phase-history" class="phase-history"></div></section>
     </main>
 
-    <aside class="developer-panel" id="developer-panel" aria-label="开发者牌堆">
+    <div hidden class="developer-panel" id="developer-panel" aria-label="开发者牌堆">
       <div class="developer-heading"><div><span class="eyebrow">DEVELOPER</span><h2>牌堆工作台</h2></div><button class="icon-button mobile-only" id="developer-close" title="关闭牌堆" aria-label="关闭牌堆"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button><span class="dev-mark">DEV</span></div>
       <div class="next-tile-section"><div><span class="panel-label">下一张</span><div id="next-tile" class="next-tile"></div></div><div class="next-tile-meta"><span id="deck-remaining">—</span><small>张未翻开</small><button class="text-button" id="edit-wall"><svg class="icon"><use href="/assets/icons.svg#braces"></use></svg>编辑牌堆</button></div></div>
       <div class="deck-toolbar"><div><span class="panel-label">完整顺序</span><span class="order-label">下一张在最前</span></div><div class="deck-tools"><button class="icon-button" id="deck-to-front" title="移到牌堆最前" aria-label="移到牌堆最前"><svg class="icon"><use href="/assets/icons.svg#to-front"></use></svg></button><button class="icon-button" id="deck-delete" title="移除选中的牌" aria-label="移除选中的牌"><svg class="icon"><use href="/assets/icons.svg#trash"></use></svg></button></div></div>
       <div id="deck-grid" class="deck-grid" aria-label="按摸牌顺序排列的牌堆"></div>
       <div class="developer-bottom"><span id="deck-selection">未选中牌</span><button class="icon-button" id="deck-add" title="向牌堆添加牌" aria-label="向牌堆添加牌"><svg class="icon"><use href="/assets/icons.svg#plus"></use></svg></button></div>
+    </div>    <aside class="developer-panel" id="opponents-panel" aria-label="对手信息">
+      <section class="table-panel"><div class="dialog-heading"><h2>Bot 对手</h2><button type="button" class="icon-button mobile-only" id="opponents-close" aria-label="关闭对手信息">×</button></div><div id="opponent-roster"></div><p class="setup-status">一名玩家与三家 Bot 对局。开局前可选择对手策略。</p></section>
     </aside>
   </div>
+
+  <main id="mode-preview" class="mode-preview" hidden>
+    <section data-mode-screen="tutorial" aria-labelledby="tutorial-title" hidden>
+      <div class="mode-page-heading"><div><span class="mode-kicker">从第一局开始</span><h1 id="tutorial-title">新手教程</h1><p>通过一场示范局，认识牌面、操作与成牌方式。</p></div><span class="preview-badge">界面预览</span></div>
+      <div class="preview-columns">
+        <section class="preview-board"><div class="preview-board-heading"><span>示范牌桌</span><span>内容准备中</span></div><div class="preview-board-center"><svg class="icon"><use href="/assets/icons.svg#book-open"></use></svg><h2>你的第一场示范局</h2><p>跟随牌局，一步一步学习。</p><button class="preview-primary" disabled>开始示范局</button></div><div class="preview-hand-zone"><span>示范手牌</span><div class="preview-hand" data-hand-preview="backs" aria-label="示范手牌占位区域"></div></div></section>
+        <aside class="preview-panel"><span class="mode-kicker">跟着牌局学</span><h2>示范讲解</h2><div class="empty-explanation"><svg class="icon"><use href="/assets/icons.svg#book-open"></use></svg><strong>示范局内容准备中</strong><p>这里将展示当前步骤的讲解，以及需要关注的牌和操作。</p></div><div class="preview-progress"><span>演示进度</span><span>— / —</span></div><div class="preview-progress-track"></div><div class="preview-button-row"><button class="secondary-button" disabled>上一步</button><button class="primary-button" disabled>下一步</button></div></aside>
+      </div>
+    </section>
+
+    <section data-mode-screen="teaching" aria-labelledby="teaching-title" hidden>
+      <div class="mode-page-heading"><div><span class="mode-kicker">边打边学</span><h1 id="teaching-title">教学模式</h1><p>在对局中查看听牌、出牌分析与向听辅助。</p></div><span class="preview-badge">界面预览</span></div>
+      <div class="preview-columns">
+        <section class="preview-board">
+          <div class="preview-board-heading"><span>辅助牌桌</span><span>教学对局准备中</span></div>
+          <div class="preview-opponents"><div>上家<div class="preview-mini-backs"></div></div><div>对家<div class="preview-mini-backs"></div></div><div>下家<div class="preview-mini-backs"></div></div></div>
+          <div class="preview-board-center"><svg class="icon"><use href="/assets/icons.svg#compass"></use></svg><h2>每一步，都可以多看一种可能</h2><p>右侧辅助区将跟随手牌展示分析。</p></div>
+          <div class="preview-hand-zone"><span>我的手牌</span><div class="preview-hand" data-hand-preview="backs" aria-label="教学模式手牌占位区域"></div></div>
+        </section>
+        <aside class="preview-panel helper-preview" data-helper-tabs><div class="preview-panel-heading"><h2>对局辅助</h2><span class="quiet-tag">准备中</span></div><div class="helper-tabs" role="tablist" aria-label="教学辅助工具"><button id="teaching-waits-tab" role="tab" data-helper="waits" aria-selected="true" aria-controls="teaching-waits">听牌计算器</button><button id="teaching-analysis-tab" role="tab" data-helper="analysis" aria-selected="false" aria-controls="teaching-analysis" tabindex="-1">出牌分析</button><button id="teaching-shanten-tab" role="tab" data-helper="shanten" aria-selected="false" aria-controls="teaching-shanten" tabindex="-1">向听计算器</button></div><div id="teaching-waits" class="helper-content" role="tabpanel" aria-labelledby="teaching-waits-tab" data-helper-panel="waits"><span class="analysis-label">可听的牌</span><div class="analysis-empty">—</div><p>这里将列出待牌，并展示对应的成牌拆解。</p></div><div id="teaching-analysis" class="helper-content" role="tabpanel" aria-labelledby="teaching-analysis-tab" data-helper-panel="analysis" hidden><span class="analysis-label">出牌方案</span><div class="analysis-empty">—</div><p>这里将比较各出牌方案和后续进张。</p></div><div id="teaching-shanten" class="helper-content" role="tabpanel" aria-labelledby="teaching-shanten-tab" data-helper-panel="shanten" hidden><span class="analysis-label">当前向听数</span><div class="analysis-empty">—</div><p>这里将显示牌型距离，以及能够改善手牌的进张。</p></div><div class="preview-note">辅助功能准备中</div></aside>
+      </div>
+    </section>
+
+    <section data-mode-screen="calculator" aria-labelledby="calculator-title" hidden>
+      <div class="mode-page-heading"><div><span class="mode-kicker">把一副牌看明白</span><h1 id="calculator-title">计算模式</h1><p>录入 13 张手牌，查看听牌、出牌分析与向听信息。</p></div><span class="preview-badge">界面预览</span></div>
+      <div class="preview-columns calculator-columns">
+        <section class="preview-panel calculator-input"><div class="preview-panel-heading"><h2>手牌录入</h2><span class="quiet-tag">0 / 13 张</span></div><div class="preview-hand empty-hand" data-hand-preview="slots" aria-label="13 张手牌录入占位区域"></div><div class="palette-heading"><h3>选择牌面</h3><button class="text-button" disabled>清空手牌</button></div><div class="preview-palette" data-palette-preview aria-label="待开放的牌面录入区域"></div><p class="preview-note">手牌录入与分析功能准备中</p><button class="primary-button preview-wide-button" disabled>分析这副手牌</button></section>
+        <aside class="preview-panel"><h2>牌型分析</h2><div class="analysis-summary"><div><span>向听数</span><strong>—</strong></div><div><span>有效进张</span><strong>—</strong></div><div><span>未见张数</span><strong>—</strong></div></div><div class="analysis-placeholder"><h3>听牌计算器</h3><p>待牌、成牌拆解和起胡说明。</p></div><div class="analysis-placeholder"><h3>出牌分析</h3><p>各出牌方案与后续进张的比较。</p></div><div class="analysis-placeholder"><h3>向听计算器</h3><p>当前牌型距离与可改善手牌的进张。</p></div></aside>
+      </div>
+    </section>
+
+    <section data-mode-screen="practice" aria-labelledby="practice-title" hidden>
+      <div class="mode-page-heading"><div><span class="mode-kicker">练一练你的眼力</span><h1 id="practice-title">听牌练习</h1><p>选出所有待牌，或判断不能听。只看牌型，不考虑起胡番；空听也须选出。</p></div><span class="preview-badge">不计起胡番</span></div>
+      <div class="practice-layout">
+        <section class="practice-settings" aria-label="听牌练习设置">
+          <label class="practice-limit-toggle"><input type="checkbox" id="practice-timed" checked>限时作答</label>
+          <label class="practice-limit-value"><input type="number" id="practice-seconds" min="1" max="600" step="1" value="30" aria-label="练习限时秒数">秒</label>
+          <span class="practice-settings-hint" id="practice-settings-hint">取消勾选即可不限时</span>
+          <button class="primary-button" id="practice-new">开始练习 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></button>
+        </section>
+        <p class="inline-error" id="practice-error" role="alert" hidden></p>
+        <section class="preview-panel practice-question-panel">
+          <div class="preview-panel-heading"><h2>题目手牌 <small id="practice-question-number"></small></h2><div class="practice-question-meta"><span id="practice-status" role="status">准备开始</span><span id="practice-timer" class="practice-timer" hidden></span></div></div>
+          <div class="practice-hand-area"><div class="practice-hand-caption"><span>13 张手牌 · 可拖动排序</span><button class="text-button" id="practice-sort" disabled>按数值整理</button></div><div id="practice-hand" class="practice-hand" aria-label="可拖动排序的练习手牌"></div></div>
+          <div class="palette-heading"><h3>你认为听哪些牌？</h3><span id="practice-selection-count">可选择多种牌</span></div>
+          <div class="preview-palette practice-answer-palette" id="practice-palette" aria-label="选择所有待牌"></div>
+          <p class="practice-choice-legend" id="practice-choice-legend" hidden>绿色：选对　金色：漏选　红色：误选</p>
+          <div class="practice-actions"><button class="secondary-button" id="practice-not-ready" aria-pressed="false" disabled>这副牌不能听</button><div><button class="secondary-button" id="practice-reveal" disabled>查看答案</button><button class="primary-button" id="practice-submit" disabled>提交答案</button></div></div>
+        </section>
+        <section class="practice-results" id="practice-results" aria-labelledby="practice-result-title" hidden><div class="practice-result-heading"><div><span class="mode-kicker" id="practice-result-kicker"></span><h2 id="practice-result-title"></h2></div><span id="practice-result-summary"></span></div><p id="practice-result-message"></p><div id="practice-correct-tiles" class="practice-correct-tiles"></div><p class="practice-solution-hint" id="practice-solution-hint">点击每张待牌查看分组；金色边框标出补入的牌。空听表示该牌已全部在手中。</p><div id="practice-solutions"></div></section>
+        <section class="practice-explanation" id="practice-introduction"><svg class="icon"><use href="/assets/icons.svg#target"></use></svg><div><h2>找齐所有可能</h2><p>每题从 108 张牌中随机抽取 13 张，包含不听、单种待牌和多种待牌。提交或时间到后，可以查看全部待牌与分组解答。手牌支持拖动排序，触屏也可拖动；键盘可用 Alt 加左右方向键移动手牌。</p></div></section>
+      </div>
+    </section>
+  </main>
 
   <dialog id="editor-dialog" class="editor-dialog"><form id="editor-form"><div class="dialog-heading"><div><span class="eyebrow">DEVELOPER</span><h2 id="editor-title">编辑牌堆</h2></div><button type="button" class="icon-button" data-close="editor-dialog" title="关闭" aria-label="关闭"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div><label class="editor-label" for="tile-input" id="editor-order">下一张在最前</label><textarea id="tile-input" spellcheck="false" aria-label="牌值 JSON 数组"></textarea><div id="tile-palette" class="tile-palette"></div><p id="editor-error" class="inline-error" role="alert"></p><div class="dialog-footer"><button type="button" class="secondary-button" data-close="editor-dialog">取消</button><button type="submit" class="primary-button">应用修改 <svg class="icon"><use href="/assets/icons.svg#check"></use></svg></button></div></form></dialog>
 
@@ -81,6 +155,34 @@
     <p id="recovery-error" class="inline-error" role="alert"></p>
     <div class="dialog-footer"><button type="button" id="recovery-reset" class="secondary-button">放弃旧局</button><button type="button" id="recovery-resume" class="primary-button">继续对局 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></button></div>
   </dialog>
+<dialog id="local-settings" class="setup-dialog" aria-labelledby="local-settings-title">
+  <form id="local-settings-form">
+    <div class="dialog-heading"><h2 id="local-settings-title">单机设置</h2><button type="button" class="icon-button" data-close="local-settings" aria-label="关闭单机设置" title="关闭"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div>
+    <section id="bot-settings" class="bot-settings" hidden>
+      <h3>Bot 对手</h3>
+      <p id="bot-model-status" class="setup-status"></p>
+      <div id="bot-model-list" class="bot-model-list"></div>
+      <div id="bot-profile-list"></div>
+    </section>
+    <label class="local-multiple local-preparation">开局理牌时间<input id="local-hand-preparation" type="number" min="0" max="600" step="1" value="30" required aria-label="开局理牌秒数"><span>秒</span></label>
+    <p class="setup-status">发牌后先整理手牌，再由庄家摸牌。0 秒表示跳过。</p>
+    <div class="timer-settings-heading"><h3>操作计时</h3><label class="switch-label"><input type="checkbox" id="local-timers-enabled" checked>启用计时</label></div>
+    <div id="local-timer-settings" class="timer-settings"></div>
+    <label class="local-multiple">牌局模式<select id="local-rule-mode"><option value="normal">普通模式 · 一次胡牌结束</option><option value="blood_battle">血战模式 · 三家胡牌或流局结束</option></select></label>
+    <p id="local-blood-bot-note" class="setup-status" hidden>血战尚无专用 Bot；数学、搜索、NN/RL 等会使用兼容降级行为。</p>
+    <label class="local-multiple"><input id="local-multiple-hu" type="checkbox" checked>允许一炮多响</label>
+    <p id="local-settings-status" class="setup-status"></p>
+    <p id="local-settings-error" class="inline-error" role="alert"></p>
+    <div class="dialog-footer"><button type="submit" class="primary-button" id="local-start">开始本局 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></button></div>
+  </form>
+</dialog>
+<dialog id="wall-review-dialog" class="wall-review-dialog" aria-labelledby="wall-review-title">
+  <div class="dialog-heading"><div><span class="eyebrow">ROUND WALL</span><h2 id="wall-review-title">本局牌山</h2></div><button type="button" class="icon-button" data-close="wall-review-dialog" title="关闭牌山" aria-label="关闭牌山"><svg class="icon"><use href="/assets/icons.svg#x"></use></svg></button></div>
+  <p id="wall-review-summary" class="wall-review-summary"></p>
+  <p id="wall-review-error" class="inline-error" role="alert"></p>
+  <div id="wall-review-content"></div>
+</dialog>
+
   <div id="toast" class="toast" role="status" hidden></div>
 </body>
 </html>

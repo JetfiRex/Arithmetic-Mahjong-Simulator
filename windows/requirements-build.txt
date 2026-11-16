@@ -1,0 +1,3 @@
+-r ../singleplayer/requirements.txt
+pyinstaller>=6,<7
+PySide6>=6.8,<7

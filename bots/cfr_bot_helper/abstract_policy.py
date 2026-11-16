@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 
 from bots.cfr_bot_helper.cfr_abstraction import Abstraction, PLANS
-from bots.cfr_bot_helper.cfr_policy import read_archive
+from bots.cfr_bot_helper.policy_common import read_archive
 
 FORMAT = 'abstract-mccfr-average-v1'
 ALGORITHM = 'shared-imperfect-recall-outcome-sampling-v1'

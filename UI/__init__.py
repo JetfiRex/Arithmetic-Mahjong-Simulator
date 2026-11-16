@@ -1,1 +1,1 @@
-"""Shared table assets for human rooms and bot practice."""
+"""Single-player table assets and interactions."""

@@ -35,7 +35,7 @@ from simulator.game_state import (
     TileValue,
     TileWall,
 )
-from simulator.hand_state import HandGroup, HandTile
+from simulator.hand_state import HandTile
 from simulator.melds import (
     ORIENTATION_BACK,
     ORIENTATION_SIDEWAYS,
@@ -67,7 +67,6 @@ from simulator.tile_selection import (
     TileSelectionError,
     TileSelectionResult,
     select_tiles,
-    select_tiles_by_region_order,
 )
 
 __all__ = [
@@ -116,7 +115,6 @@ __all__ = [
     "resolve_response_requests",
     "TileValue",
     "TileWall",
-    "HandGroup",
     "HandTile",
     "TimeoutConfig",
     "TimerKind",
@@ -124,7 +122,6 @@ __all__ = [
     "TileSelectionError",
     "TileSelectionResult",
     "select_tiles",
-    "select_tiles_by_region_order",
     "WinContext",
     "WinMethod",
     "WinResult",

@@ -1,41 +1,59 @@
-.venv/
-.venv-bot/
+# Local Python environments and generated caches.
+.venv*/
 venv/
 env/
-
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.pytest_cache
+.runtime/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .npm-cache/
-UI/.runtime/
-multiplayer/.runtime/
-multiplayer/test/
+.coverage
+.coverage.*
+htmlcov/
+
+# Research, training and tests are kept locally; design_docs stays versioned.
+/training/
+/arena/
 /test/
-.data/
+/tests/
+/singleplayer/test/
+/test_docs/
 
-.idea/
-.codex/
-.agent/
-.pytest_cache
-.vscode/
-*.swp
-*.swo
-build/
-dist/
-
-.DS_Store
-
-*.jpg
-*.jpeg
-*.jpg
-*.csv
-*.gz
+# Build outputs; keep the build scripts, spec files and runtime assets.
+/build/
+/dist/
+*.egg-info/
+*.exe
+*.msi
+*.app/
+*.dmg
+*.AppImage
 *.tar
 *.7z
 *.zip
 *.rar
+
+# Editor, agent and operating-system files.
+.idea/
+.vscode/
+.codex/
+.agent/
+.agents/
+*.swp
+*.swo
+.DS_Store
+._*
+desktop.ini
+Thumbs.db
+.env
+.env.*
 *.env
 *.log
-*.json
+
+# Training data, checkpoints and experiments stay local.
+# Publish the selected frozen inference exports under models/ instead.
+/.data/

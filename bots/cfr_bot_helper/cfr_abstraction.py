@@ -13,7 +13,7 @@ import json
 import math
 
 from bots.math_bot_helper.analysis import unseen_counts
-from bots.cfr_bot_helper.cfr_policy import CONTRACT as BASE_CONTRACT, STYLES, rule_contract, semantic
+from bots.cfr_bot_helper.policy_common import CONTRACT as BASE_CONTRACT, STYLES, rule_contract, semantic
 from bots.math_bot_helper.features import arithmetic_patterns
 from bots.common_bot_helper.observation import TILE_INDEX, TILE_VALUES
 from simulator.actions import ActionType

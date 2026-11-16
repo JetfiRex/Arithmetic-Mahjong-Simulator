@@ -4,11 +4,12 @@ from dataclasses import dataclass, field
 import math
 import random
 import time
+from pathlib import Path
 
 from bots.cfr_bot_helper.abstract_policy import load_policy
 
 from bots.cfr_bot_helper.cfr_abstraction import DEFAULT_PLAN, PLANS, plan_actions, visible_vectors
-from bots.cfr_bot_helper.cfr_policy import STYLES, semantic
+from bots.cfr_bot_helper.policy_common import STYLES, semantic
 from bots.common_bot_helper.decision import ActionScore, DecisionExplanation
 from simulator.actions import ActionType
 
@@ -16,7 +17,7 @@ from simulator.actions import ActionType
 class AbstractCfrBot:
     style: str = 'fast'
     seed: int = 0
-    model_path: str = '.data/models/cfr-abstract-v1/policy.json.gz'
+    model_path: str = str(Path(__file__).resolve().parents[1] / 'models/cfr-abstract-v1/policy.json.gz')
     unseen: str = 'rule'
     greedy: bool = False
     reserve_ms: float = 15.

@@ -1,6 +1,16 @@
 # Arithmetic-Mahjong-Simulator
 
-算术麻将的 Python 牌局后端、本地真人房间及人机牌桌。支持普通与血战模式、点胡、自摸、抢杠、流局结算和手动下一局。已提供 Bot、Arena 与实验训练，以及独立的本地 RL 人机试玩入口。
+算术麻将单机版，包含 Python 牌局后端与本地人机牌桌。支持普通与血战模式、点胡、自摸、抢杠、流局结算和手动下一局。已提供 Bot、Arena 与实验训练，以及独立的本地 RL 人机试玩入口。
+
+## 双击游玩（无需 Python）
+
+Windows 用户可直接使用 `dist/算术麻将.exe`，也可将 `dist/算术麻将-Windows独立窗口版.zip` 发给其他人。解压后双击 exe，牌桌直接显示在独立游戏窗口中；不需要安装 Python、打开浏览器或输入命令，内置 NN、RL 和 CFR 模型，可离线运行。关闭游戏窗口即可退出，退出后本次对局清空。
+
+使用说明见 [Windows 发布说明](windows/README.md)。下面的 Python 命令用于开发和训练环境。
+
+当前源码启动后先显示带 Logo 的模式首页，可选择新手教程、普通模式、教学模式、计算模式和听牌练习。普通模式进入现有单机对局；听牌练习已支持随机出题、多选判题、限时或不限时、拖牌整理，以及全部待牌和分组解答。新手教程、教学模式和计算模式目前提供界面预览。页面提供返回首页入口，当前对局会保留并继续计时。源码修改默认只验证，不自动重新生成 exe；发布文件以最近一次明确打包为准。
+
+听牌练习每次从完整 108 张牌中无放回随机抽取 13 张，只检查牌型，不考虑起胡番。按不同待牌牌种数做拒绝采样：不听接受率 1%，单待牌接受率 10%，两种及以上全部接受。空听也计入并须选出，答案会标注副本已全部在手中。默认每题限时 30 秒，可调整为 1～600 秒或不限时；提交、查看答案或超时后展示全部正确待牌，可展开查看分组，金色边框表示补入的牌。
 
 ## 本地人机试玩
 
@@ -8,24 +18,23 @@
 
 ```powershell
 py -3.13 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r multiplayer/requirements-bot.txt
-.\.venv\Scripts\python.exe -m multiplayer.bot_play --port 8772 --model .data/models/rl-3h/snapshots/ppo-0068.npz --acfr-model .data/models/cfr-abstract-newrules-1h/policy.json.gz
+.\.venv\Scripts\python.exe -m pip install -r singleplayer/requirements.txt
+.\.venv\Scripts\python.exe -m singleplayer --port 8772 --model models/rl-3h/snapshots/ppo-0068.npz --acfr-model models/cfr-abstract-newrules-1h/policy.json.gz
 ```
 
-上述命令显式选择 RL 第 68 批及累计训练 26,794 局的新版抽象 CFR，不依赖作者机器上的 RL 缓存。发布时需一同提供下面四份推理导出；其他训练数据、检查点和评测文件均不是游玩依赖：
+上述命令显式选择 RL 第 68 批及累计训练 26,794 局的CFR，不依赖作者机器上的 RL 缓存。根目录 `models/` 存放可随源码分发的冻结权重，`.data/` 仅保存本地训练数据并整目录忽略。桌面发布使用下面三份推理导出；其他训练数据、检查点和评测文件均不是游玩依赖：
 
 ```text
-.data/models/p4-v1/policy.npz
-.data/models/rl-3h/snapshots/ppo-0068.npz
-.data/models/cfr-mahjong/policy.json.gz
-.data/models/cfr-abstract-newrules-1h/policy.json.gz
+models/p4-v1/policy.npz
+models/rl-3h/snapshots/ppo-0068.npz
+models/cfr-abstract-newrules-1h/policy.json.gz
 ```
 
-新抽象 CFR 的目录名沿用训练时的 `-1h`，实际已经续训到累计约五小时。原 `.data/models/cfr-abstract-v1/policy.json.gz` 可保留作旧版对照；省略 `--acfr-model` 时仍加载这个旧默认文件。
+CFR 的目录名沿用训练时的 `-1h`，实际已经续训到累计约五小时。`models/cfr-abstract-v1/policy.json.gz` 和 `models/rl-v1/policy.npz` 保留既有默认入口的选择；省略 `--acfr-model` 时仍加载旧 CFR。权重位置和默认用途见 [游玩模型说明](models/README.md)。
 
-没有模型时也可运行 `.\.venv\Scripts\python.exe -m multiplayer.bot_play --port 8772 --no-models`，使用基础、数学、搜索和启发式风格策略。
+没有模型时也可运行 `.\.venv\Scripts\python.exe -m singleplayer --port 8772 --no-models`，使用基础、数学、搜索和启发式风格策略。
 
-访问 [8772 人机试玩](http://127.0.0.1:8772)，创建房间后默认安排你和三家 Bot。房主设置提供以下 8 类、共 25 个配置，名称与 UI 一致：
+访问 [单机首页](http://127.0.0.1:8772)，选择“普通模式”后打开单机设置，默认由你和三家 Bot 对局。设置提供以下 7 类、共 21 个配置，名称与 UI 一致：
 
 | UI 分类 | 数量 | 如何决策 |
 | --- | ---: | --- |
@@ -35,65 +44,44 @@ py -3.13 -m venv .venv
 | 启发式风格 | 4 | 用手写的推进、牌值、风险和牵制评分形成不同打法，无需训练模型。 |
 | 模仿学习 NN | 4 | 神经网络学习启发式教师给出的动作偏好，使用模仿训练得到的权重。 |
 | 强化学习 RL | 4 | 从模仿模型出发，通过对局奖励和风格目标继续训练神经网络，使用独立的 RL 权重。 |
-| 精确 CFR | 4 | 按较完整的玩家可见观察、个人决策历史和具体合法动作查平均策略表；局面区分细，未见局面回退到对应风格规则。 |
-| 抽象 CFR | 4 | 把相似的可见局面合并为有限类别，学习在“推进、牌值、安全、牵制、均衡”五种选牌规则之间取舍，再由规则选出具体合法动作。 |
+| CFR | 4 | 把相似的可见局面合并为有限类别，学习在“推进、牌值、安全、牵制、均衡”五种选牌规则之间取舍，再由规则选出具体合法动作。 |
 
 表中数量为 4 的类别均提供**速胡、做大、稳守、牵制**四种风格。类别表示实现方法，不是强弱等级。
 
-**NN 和 RL 都使用神经网络。** 这里 UI 中的“NN”特指模仿学习版，主要学习教师怎么选；“RL”则在此基础上根据对局奖励继续调整。两者的游戏内推理结构相同，训练方式和加载的权重不同，RL 不自动代表更强。NN、RL 和两类 CFR 在试玩中都读取冻结模型，不会一边打牌一边继续训练。
+**NN 和 RL 都使用神经网络。** 这里 UI 中的“NN”特指模仿学习版，主要学习教师怎么选；“RL”则在此基础上根据对局奖励继续调整。两者的游戏内推理结构相同，训练方式和加载的权重不同，RL 不自动代表更强。NN、RL 和CFR 在试玩中都读取冻结模型，不会一边打牌一边继续训练。
 
 **“搜索”会额外做有限的后续对局模拟，“启发式风格”主要通过预设评分体现打法差异。** 搜索只在预算允许时分析少量出牌候选，本身也使用启发式评分；预算不足时会保留数学策略的可用选择。
 
-**精确 CFR 的“精确”指信息集划分更细，不是已经求出了麻将的精确最优解。** 它保留更多可见观察和个人历史，直接学习具体动作的概率；只有再次遇到相同的可见观察、个人决策历史和动作菜单，才能命中原表项。抽象 CFR 主动合并局面、缩短历史，并学习五种选牌规则的概率，查表更容易复用，但会丢失部分细节。两者都只能使用玩家有权知道的信息，不读取真实对手暗牌或未来牌山；当前均为采样训练实验，不代表已获得最优策略。
+**CFR 沿用原来的抽象 CFR 算法和训练权重，本次仅改显示名称。** 它合并相似局面、缩短历史，学习五种选牌规则的概率；未命中时使用对应风格规则。它只使用玩家有权知道的信息，不读取真实对手暗牌或未来牌山。当前仍为近似采样训练实验，没有最优策略或均衡保证。内部 `acfr-*` 配置名、训练模块和模型路径保持兼容。原精确版入口及专用产物已移除。
 
-缺少模型的项会在 UI 中禁用，不影响无需模型的策略开局。拖牌、分组、吃碰杠胡过仍用原操作。默认计时为 t1/t2/t4 各 5 秒、t3 30 秒，可在每局开局前调整或关闭。
+缺少模型的项会在 UI 中禁用，不影响无需模型的策略开局。支持拖动排序、按实体牌出牌及吃碰杠胡过。每局发牌后默认先理牌 30 秒，可在开局前设为 0～600 秒，0 表示跳过；理牌期间每家 13 张，倒计时结束后庄家摸牌。默认操作计时为 t1/t2/t4 各 5 秒、t3 30 秒，可在每局开局前调整或关闭；理牌时间单独设置。
 
-房主可在每局开局前修改普通/血战模式、一炮多响和计时；本局进行时锁定，结算后点“下一局”即可重新设置，确认开局后生效并保留累计分数。普通模式同样支持一炮多响开关。血战中胡牌即时结算并退出，第三家胡牌或牌山摸空结束；自摸只向未胡的对手收款，一炮多响分别由点炮者付款。顶部“胡牌记录”可在中途查看结算，整局结束后可在结算页点击“查看牌山”，安排下一局期间仍可回看，确认新开局后关闭。现有 Bot 尚未针对血战单独训练或优化。
+可在每局开局前修改普通/血战模式、一炮多响和计时；本局进行时锁定，结算后点“下一局”即可重新设置，确认开局后生效并保留累计分数。普通模式同样支持一炮多响开关。血战中胡牌即时结算并退出，第三家胡牌或牌山摸空结束；自摸只向未胡的对手收款，一炮多响分别由点炮者付款。顶部“胡牌记录”可在中途查看结算，整局结束后可在结算页点击“查看牌山”，安排下一局期间仍可回看，确认新开局后关闭。现有 Bot 尚未针对血战单独训练或优化。
 
-可与 RL 长训同时运行：默认重启沿用私有缓存中的冻结 RL，当前已更新为训练器开发验证选中的第 68 轮（最后完成的是第 71 轮）；不读取训练正在更新的别名或检查点，不自动更新。NN 和两类 CFR 各有独立冻结模型。明确传 `--model <编号快照>` 才更换 RL；传训练目录会选最新完成批，不等于验证选中批。`--no-models` 可完全不读模型。只用一个低优先级 CPU 推理进程、不导入 Torch/CUDA，不修改训练源码或输出，但同机仍会有少量资源竞争。当前环境已安装所需依赖，新环境可装 `multiplayer/requirements-bot.txt`，不要改训练虚拟环境。
+可与 RL 长训同时运行：默认重启沿用私有缓存中的冻结 RL，当前已更新为训练器开发验证选中的第 68 轮（最后完成的是第 71 轮）；不读取训练正在更新的别名或检查点，不自动更新。NN 和CFR 各有独立冻结模型。明确传 `--model <编号快照>` 才更换 RL；传训练目录会选最新完成批，不等于验证选中批。`--no-models` 可完全不读模型。只用一个低优先级 CPU 推理进程、不导入 Torch/CUDA，不修改训练源码或输出，但同机仍会有少量资源竞争。当前环境已安装所需依赖，新环境可装 `singleplayer/requirements.txt`，不要改训练虚拟环境。
 
-只监听本机，一次一个房间，关服重置；纯真人 8771 保持独立。详细限制、超时保底和验证见 [人机试玩设计](design_docs/bot_play_design.md)。
-
-## 电脑开服模式
-
-按最新目标新增独立入口：**每次启动从空白房间开始，关服后不恢复**。当前本机预览为 [8771](http://127.0.0.1:8771)。
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r multiplayer/requirements.txt
-.\.venv\Scripts\python.exe -m multiplayer.web --port 8771
-# 或 .\multiplayer\start.ps1 -Port 8771，Ctrl+C 关服
-```
-
-项目虚拟环境可先用 Python 3.13 的 `python -m venv .venv` 创建。新入口使用 FastAPI/Uvicorn 单 worker，仍只绑定本机；状态继续轮询，独立 WebSocket 负责连接存活。原窗口刷新/多标签页可交接；非房主参赛者确认掉线后暂停全桌，默认每席每局累计 300 秒等待原凭证返回，期间所有操作时间冻结。逾期只过牌、摸什么打什么，本局回来仍托管，下一局可恢复真人。房主个人失联关闭本房，普通观众离线不暂停；疑似全服同时断链时先保护暂停，避免批量误删。
-
-新入口不读写或删除旧 SQLite 存档；进程重新启动后旧身份和操作失效，原页面自动回大厅。**Access 身份绑定、Tunnel 和域名还未接入，当前不要发布到外网。** `--public-origin` 只是精确 HTTPS 来源的预留配置，不是身份保护。完整边界与测试见 [电脑开服设计](design_docs/hosting_design.md)。
-
-旧测试入口已于 2026-10-26 移除，目前只提供以上两个入口。旧 SQLite 文件保留，但当前服务不载入。
+只监听本机，所有本机标签页共用同一张单机牌桌；关闭程序后重置，刷新页面继续当前对局。启动脚本为 `.\singleplayer\start.ps1`，可加 `-NoModels` 使用无需模型的策略。详细预算与模型规则见 [单机人机设计](design_docs/bot_play_design.md)。
 
 ## 实现状态
 
-- ✅ 四人发牌、摸牌、按实体牌出牌、手牌排序和自定义分组。
+- ✅ 四人发牌、摸牌、按实体牌出牌、手牌拖动排序。
 - ✅ t1 响应裁决、t2 吃法选择、t3 暗杠/加杠/自摸及超时处理。
 - ✅ 仅加杠可抢的 t4，全部过恢复原 t3 剩余时间；只有合格玩家能操作，倒计时只对本人可见。
 - ✅ 可替换的 RuleAdapter、NormalScoringAdapter 与 BloodBattleScoringAdapter。
 - ✅ 最高番胡法、番种明细、赔付、分数变化和 RoundResult。
 - ✅ 本人本局首次出牌前胡牌自动加天胡 3 番；点胡由点炮者付款，自摸由其他仍参与的玩家付款。
-- ✅ 七小对要求七种不同牌各两张，大三元要求至少 9 张符号；数学、搜索、规则风格及抽象 CFR 辅助逻辑已同步。
+- ✅ 七小对要求七种不同牌各两张，大三元要求至少 9 张符号；数学、搜索、规则风格及CFR 辅助逻辑已同步。
 - ✅ 一炮多响开关、累计分数、手动开始下一局和庄家固定轮换。
 - ✅ 血战胡牌退出、逐次付款、三家胡牌/流局汇总、即时记录与旧普通快照迁移。
-- ✅ 整理与出牌请求支持旧 t3 窗口校验，非法跨组移动不会产生部分修改。
-- ✅ 完整 GameState 私有快照及 SQLite 原子存储能力；当前开服入口使用内存状态，关服重置。
-- ✅ 本地多人创建/密码加入、十人成员、房主选座开局、四个真人视角、公共/上帝观战、局间换人及座位分数继承。
-- ✅ 本地多人结算后全员点击牌山查看完整顺序；独立的赛后查看、安排下一局和确认开局阶段。
-- ✅ 独立 ASGI 开服入口每次重置；连接交接、全桌暂停、300 秒宽限、默认摸切、房主个人离线关房与疑似全服断链保护。
+- ✅ t1～t4 均可拖动排序，包括自己的吃牌选择；实体 ID、本局及本人手牌版本防止旧拖动误移牌，非法位置不产生部分修改。自动吃碰杠从当前手牌左侧选取，手动吃牌保留指定实体。
+- ✅ 完整 GameState 私有快照及 SQLite 原子存储能力；当前单机入口使用内存状态，关闭程序后重置。
 - ✅ 独立 Bot P0/P1：玩家观察、完整候选、控制权校验、三个基线及支持计算预算/超时保底的四席 Arena。
 - ✅ Bot P2 首版：预算内听牌分析、未见牌统计、组形启发式、吃碰杠比较及逐动作评分说明。
 - ✅ Bot P3 实验版本：库存约束的距离/进张、固定待牌概率、可见库存采样及 t3 出牌截断搜索。
 - ✅ Bot P3.5 初级风格：速胡、做大、稳守及可调牵制，共用分析、计算预算和候选说明。
 - ✅ Bot P4 模仿首版：独立 CUDA 训练、带风格候选网络、CPU 推理、冻结快照与同预算降级。
 - ✅ Bot PPO 实验：风格效用、可见信息 critic、旧策略池、精确行为概率、恢复与独立 RL 模型。
-- ✅ 独立本地全策略人机试玩：25 个配置、NN/RL/CFR 独立冻结模型、默认不更新 RL、单 CPU 进程与预算保底，保留真人命令路径。
-- ❌ 完整搜索/CFR Bot、血战专用策略训练、Access 身份绑定/跨设备找回、Tunnel/公网部署及逐步回放播放器。
+- ✅ 独立本地全策略人机试玩：21 个配置、NN/RL/CFR 独立冻结模型、默认不更新 RL、单 CPU 进程与预算保底，保留真人命令路径。
 
 ## Bot 离线 Arena
 
@@ -111,18 +99,17 @@ py -3.13 -m venv .venv
 
 自定义 `Bot.act(observation, legal_actions)`、有限时示例和私有轨迹记录见 [Arena 使用说明](arena/README.md)。
 
-P4 已在本机 RTX 3060 上训练，可用 `.\.venv-bot\Scripts\python.exe -m arena --games 4 --bots nn-fast nn-big nn-defensive nn-blocking` 试跑。模型位于 `.data/models/p4-v1/policy.npz`；缺少模型时会明确降级为对应初级风格。训练使用 GPU，对局使用小型 NumPy CPU 模型并遵守原有计算上限。模仿版安装、重训与恢复见 [训练说明](training/README.md)。
+P4 已在本机 RTX 3060 上训练，可用 `.\.venv-bot\Scripts\python.exe -m arena --games 4 --bots nn-fast nn-big nn-defensive nn-blocking` 试跑。模型位于 `models/p4-v1/policy.npz`；缺少模型时会明确降级为对应初级风格。训练使用 GPU，对局使用小型 NumPy CPU 模型并遵守原有计算上限。模仿版安装、重训与恢复见 [训练说明](training/README.md)。
 
-PPO 实验使用 `rl-fast rl-big rl-defensive rl-blocking`，默认模型为 `.data/models/rl-v1/policy.npz`；原 `nn-*` 保留作对照。新增 `python -m training.rl_long`，可自行运行四风格、共享层解冻的 10,240 局训练并断点续训，输出另存 `rl-long/`，通过 Arena `--models` 指定。命令、奖励与恢复见 [RL 说明](training/RL.md)。尚未证明比模仿版更强；独立本地真人试玩见本文开头，正式公网接入及完整体验验收仍未完成。
 
 ## 测试
 
 使用 Python 3.13，并在仓库根目录运行：
 
-联网入口新增的接口测试需要项目 `.venv` 安装上述运行依赖；使用 `.\.venv\Scripts\python.exe -m pytest -q` 可一起运行（该环境需另装 pytest）。未安装 FastAPI 的原环境会跳过联网接口专项测试，不代表这些测试已运行。
+测试环境需安装 pytest、httpx 和单机运行依赖。运行引擎与单机专项检查：
 
 ```powershell
-& "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe" -m pytest -q
+.\.venv\Scripts\python.exe -m pytest test singleplayer/test -q
 ```
 
 ## 后端入口
@@ -142,19 +129,17 @@ tile = game.draw_tile(game.current_player().player_id, now=0)
 
 GameState 不自行等待时间；外部运行层调用 `expire_timers(now)` 推进超时。下一局仅在 `ROUND_ENDED` 后接受手动请求。
 
-当前房间与人机专项测试：`python -m pytest multiplayer/test -q`。可选浏览器检查为 `python -m multiplayer.check_live` 和 `python -m multiplayer.check_bot_play`，需要额外安装 Playwright；截图写入忽略的 `multiplayer/.runtime/`。网页运行不需要 Playwright。
+单机专项覆盖固定三家 Bot、配置锁定、旧请求拒绝、普通/血战整局、结算牌山、下一局和本机 HTTP 接口。测试目录和运行缓存继续本地忽略。
 
 ## 设计文档
 
 - [总设计与实现进度](design_docs/general_design.md)
 - [Action 与计时](design_docs/action_timeout_design.md)
-- [手牌分组](design_docs/hand_grouping_design.md)
+- [手牌身份、排序与动作选牌](design_docs/hand_ordering_design.md)
 - [旧单人 UI 与开发者牌堆（归档）](design_docs/ui_prototype_design.md)
-- [四人联机设计与实施计划](design_docs/multiplayer_design.md)
-- [个人电脑开服、重置与断线托管](design_docs/hosting_design.md)
-- [引擎保存恢复与旧服务记录](design_docs/state_recovery_design.md)
+- [引擎保存恢复与牌山记录](design_docs/state_recovery_design.md)
 - [Bot 接口与分阶段计划](design_docs/bot_design.md)
 - [Bot 开发与验收日志](test_docs/bot_development_log.md)
 - [评测报告索引](test_docs/README.md)
-- [本地人机试玩、CPU 预算与训练隔离](design_docs/bot_play_design.md)
+- [单机人机对局、CPU 预算与模型隔离](design_docs/bot_play_design.md)
 - [血战规则与实现](design_docs/blood_battle_design.md)

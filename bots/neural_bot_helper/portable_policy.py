@@ -9,8 +9,8 @@ from bots.neural_bot_helper.encoding import CONTRACT, HEADS
 from bots.math_bot_helper.analysis import SUPPORTED_RULESET
 
 FORMAT = 'style-candidate-mlp-v1'
-DEFAULT_MODEL = Path(__file__).resolve().parents[2] / '.data/models/p4-v1/policy.npz'
-DEFAULT_RL_MODEL = Path(__file__).resolve().parents[2] / '.data/models/rl-v1/policy.npz'
+DEFAULT_MODEL = Path(__file__).resolve().parents[2] / 'models/p4-v1/policy.npz'
+DEFAULT_RL_MODEL = Path(__file__).resolve().parents[2] / 'models/rl-v1/policy.npz'
 
 
 class PortablePolicy:

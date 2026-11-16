@@ -1,0 +1,17 @@
+{
+  "nn": {
+    "path": "p4-v1/policy.npz",
+    "source_name": "policy.npz",
+    "sha256": "71425bb66a230f8820a9c5725be71658dc7c1323e0c19df5faeb5e94b7805931"
+  },
+  "rl": {
+    "path": "rl-3h/snapshots/ppo-0068.npz",
+    "source_name": "ppo-0068.npz",
+    "sha256": "ecd37ccee07a6d55f4816546ca296ec9cd87bd87b4834fa647b61ac57597f272"
+  },
+  "acfr": {
+    "path": "cfr-abstract-newrules-1h/policy.json.gz",
+    "source_name": "policy.json.gz",
+    "sha256": "c616afebb17932567e8176c4cef56d736e528974a9bc5de3d7762e77f704e953"
+  }
+}
