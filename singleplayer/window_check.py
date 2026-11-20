@@ -211,7 +211,7 @@ def check_window(destination):
         scripts = {
             "loading": ('''JSON.stringify({ready:typeof state !== 'undefined' && !!state?.bot_play,
               home_visible:!document.getElementById('mode-home').hidden,
-              mode_count:document.querySelectorAll('[data-mode]').length,
+              mode_count:document.querySelectorAll('.mode-grid .mode-card').length,
               settings_open:document.getElementById('local-settings').open})''', home_loaded),
             "settings": ('''JSON.stringify({ready:document.getElementById('local-settings').open,
               settings_open:document.getElementById('local-settings').open,

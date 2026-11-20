@@ -2,11 +2,12 @@
 
 import logging
 import os
+from pathlib import Path
 from threading import Thread
 
-from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal, QStandardPaths
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QProgressBar, QPushButton, QStackedWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QFileDialog, QLabel, QMainWindow, QProgressBar, QPushButton, QStackedWidget, QVBoxLayout, QWidget
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
@@ -79,6 +80,7 @@ class GameWindow(QMainWindow):
 
         self.view = QWebEngineView(self)
         self.profile = QWebEngineProfile(self)
+        self.profile.downloadRequested.connect(self._save_replay)
         self.page = _TablePage(self.profile, self.view)
         self.view.setPage(self.page)
         self.view.settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, False)
@@ -118,6 +120,27 @@ class GameWindow(QMainWindow):
             self.stack.setCurrentWidget(self.view)
         else:
             self._failed("游戏页面加载失败，请重新打开游戏。")
+
+    def _save_replay(self, download):
+        """Honor the in-page save button in the embedded browser as well."""
+        origin = self.session.url
+        url = download.url().toString()
+        if not origin or not (url.startswith(origin + "/") or url.startswith("blob:" + origin + "/")):
+            download.cancel()
+            return
+        filename = Path(download.suggestedFileName()).name
+        if not filename.endswith(".json"):
+            download.cancel()
+            return
+        directory = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DownloadLocation)
+        target, _ = QFileDialog.getSaveFileName(self, "保存牌谱", str(Path(directory) / filename), "牌谱 JSON (*.json)")
+        if not target:
+            download.cancel()
+            return
+        path = Path(target)
+        download.setDownloadDirectory(str(path.parent))
+        download.setDownloadFileName(path.name)
+        download.accept()
 
     def _failed(self, message):
         self.starting = False

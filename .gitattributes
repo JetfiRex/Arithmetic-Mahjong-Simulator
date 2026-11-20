@@ -1,0 +1,13 @@
+# Keep source text consistent across Windows, Linux and macOS.
+* text=auto
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+windows/使用说明.txt text eol=crlf
+
+# Runtime assets and frozen models must remain byte-for-byte identical.
+*.png binary
+*.ico binary
+*.pdf binary
+*.npz binary
+*.gz binary

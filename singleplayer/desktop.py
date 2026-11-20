@@ -89,7 +89,9 @@ class DesktopSession:
         if self.server is not None:
             self.server.should_exit = True
         if self.thread is not None:
-            self.thread.join(timeout=10)
+            # HTTP shutdown may first wait for its grace period, followed by a
+            # calculator worker finishing its bounded ten-second analysis.
+            self.thread.join(timeout=15)
             if self.thread.is_alive():
                 raise RuntimeError("游戏仍在退出，请稍候")
         if self.socket is not None:
@@ -146,7 +148,7 @@ def self_test(destination):
         report["cpu_only"] = session.worker.info["cpu_only"]
         report["torch_loaded"] = session.worker.info["torch_loaded"]
         assert all(m["available"] for m in report["models"].values())
-        for path in ("/", "/app.js", "/client.js", "/practice.js", "/styles.css", "/singleplayer.css",
+        for path in ("/", "/app.js", "/client.js", "/practice.js", "/calculator.js", "/study.js", "/tutorial.js", "/reference.js", "/styles.css", "/singleplayer.css",
                      "/tiles/app_icon.png", "/tiles/plus.png", "/assets/icons.svg"):
             assert get(path)
 
@@ -173,6 +175,113 @@ def self_test(destination):
         assert json.loads(get("/api/state"))["ui"]["round_number"] == 0
         report["practice_verified"] = True
         report["practice_wait_count"] = len(answer["waits"])
+
+        def calculate(hand, **data):
+            request = Request(session.url + "/api/calculator",
+                              data=json.dumps({"hand": hand, **data}).encode(),
+                              headers={"Content-Type": "application/json"})
+            with urlopen(request, timeout=20) as response:
+                return json.load(response)["analysis"]
+
+        ready = [1, "+", 2, 3, 2, "+", 2, 4, 3, "+", 3, 6, 5]
+        analysis = calculate(ready)
+        assert analysis["complete"] and analysis["shanten"] == 0
+        assert len(analysis["improvements"]) == 7 and analysis["unseen_total"] == 95
+        assert abs(analysis["value"] - sum(row["contribution"] for row in analysis["improvements"])) < 1e-9
+        answer = calculate(ready, action="explain", tile=5)
+        assert answer["solutions"]
+        won = calculate(ready + [5], winning_tile=5)
+        assert won["complete"] and won["win"]["qualifies"]
+        assert won["value"] == 2 ** max(won["win"]["fan"], 1)
+        assert json.loads(get("/api/state"))["ui"]["round_number"] == 0
+        report["calculator_verified"] = True
+        reference = json.loads(get("/api/reference"))
+        assert reference["total"] == 108 and len(reference["tiles"]) == 24 and reference["fans"]
+        report["reference_verified"] = True
+        tutorial_state = json.loads(get("/api/tutorial"))["tutorial"]
+        assert len(tutorial_state["hand"]) == 14 and tutorial_state["step"] == 0
+
+        def tutorial(action, **data):
+            nonlocal tutorial_state
+            request = Request(session.url + "/api/tutorial", data=json.dumps({"action": action, **data,
+                "tutorial_id": tutorial_state["tutorial_id"], "revision": tutorial_state["revision"]}).encode(),
+                headers={"Content-Type": "application/json"})
+            with urlopen(request, timeout=10) as response:
+                tutorial_state = json.load(response)["tutorial"]
+
+        for action in [*("next" for _ in range(13)), "hu"]:
+            tutorial(action)
+        assert tutorial_state["won"] and tutorial_state["result"]["win_result"]["can_win"]
+        assert json.loads(get("/api/state"))["ui"]["round_number"] == 0
+        report["tutorial_verified"] = True
+        tutorial("select_lesson", lesson=1)
+        for _ in range(3): tutorial("next")
+        assert len(tutorial_state["hand"]) == 13 and not tutorial_state["hu_enabled"]
+        for _ in range(4):
+            record = next(t for t in tutorial_state["hand"][4:] if t["value"] == 14)
+            tutorial("move", tile_id=record["tile_id"], index=0)
+        tutorial("next"); tutorial("next")
+        for value, position in [("+",5), (3,6), (5,7)]:
+            record = next(t for t in tutorial_state["hand"][4:] if t["value"] == value)
+            tutorial("move", tile_id=record["tile_id"], index=position)
+        for _ in range(3): tutorial("next")
+        tutorial("draw")
+        assert tutorial_state["hand"][-1]["value"] == 10 and tutorial_state["hu_enabled"]
+        for _ in range(3): tutorial("next")
+        tutorial("hu")
+        assert tutorial_state["won"] and tutorial_state["result"]["win_result"]["winning_tile"] == 10
+        assert json.loads(get("/api/state"))["ui"]["round_number"] == 0
+        report["tutorial_sort_verified"] = True
+        tutorial("select_lesson", lesson=2)
+        assert len(tutorial_state["hand"]) == 13 and tutorial_state["interaction"]["history_count"] == 9
+        while tutorial_state["step"] < len(tutorial_state["steps"])-1:
+            requirement = tutorial_state["interaction"]["requirement"]
+            if requirement == "discard":
+                record = next(t for t in tutorial_state["hand"] if t["value"] == tutorial_state["interaction"]["discard"])
+                tutorial("discard", tile_id=record["tile_id"])
+            elif requirement == "chi_detail":
+                option = next(o for o in tutorial_state["interaction"]["chi_options"] if 8 in o["required_values"])
+                tutorial("chi_detail", option_id=option["option_id"])
+            else:
+                tutorial("chi" if requirement == "chi_blocked" else requirement or "next")
+        assert tutorial_state["won"] and tutorial_state["result"]["win_result"]["winning_tile"] == 7
+        assert [m["group_type"] for m in tutorial_state["interaction"]["melds"]] == ["碰", "吃", "暗杠"]
+        assert json.loads(get("/api/state"))["ui"]["round_number"] == 0
+        report["tutorial_interactions_verified"] = True
+        tutorial("select_lesson", lesson=3)
+        assert len(tutorial_state["hand"]) == 13 and tutorial_state["interaction"]["history_count"] == 8
+        assert tutorial_state["traditional"]["arithmetic_preview"]["total_fan"] == 2
+        while tutorial_state["step"] < len(tutorial_state["steps"])-1:
+            tutorial("hu" if not tutorial_state["next_enabled"] else tutorial_state["next_action"])
+        traditional_win = tutorial_state["result"]["win_result"]
+        assert traditional_win["win_type"] == "传统麻将" and traditional_win["win_method"] == "点胡"
+        assert traditional_win["total_fan"] == 3 and traditional_win["winning_tile"] == 2
+        assert tutorial_state["result"]["source_player_id"] == "p3"
+        assert sorted(map(len, traditional_win["groups"])) == [2,3,3,3,3]
+        assert json.loads(get("/api/state"))["ui"]["round_number"] == 0
+        report["tutorial_traditional_verified"] = True
+        tutorial("select_lesson", lesson=4)
+        assert tutorial_state["display_only"] and len(tutorial_state["steps"]) == 6
+        examples = set()
+        while not tutorial_state["completed"]:
+            examples.add(tutorial_state["example"]["name"])
+            assert len(tutorial_state["hand"]) == 14 and not tutorial_state["hu_enabled"]
+            tutorial(tutorial_state["next_action"])
+        assert examples == {"七小对", "连七对", "清龙"} and not tutorial_state["won"]
+        assert json.loads(get("/api/state"))["ui"]["round_number"] == 0
+        report["tutorial_special_verified"] = True
+        tutorial("select_lesson", lesson=5)
+        assert len(tutorial_state["hand"]) == 14 and len(tutorial_state["blood_battle"]["active_player_ids"]) == 4
+        while not tutorial_state["completed"]:
+            tutorial("hu" if not tutorial_state["next_enabled"] else tutorial_state["next_action"])
+        blood = tutorial_state["blood_battle"]
+        assert blood["active_player_ids"] == ["p1", "p3"]
+        assert [e["winner_id"] for e in blood["settlement_events"]] == ["p0", "p2"]
+        assert all(d["player_id"] != "p0" for d in blood["settlement_events"][1]["score_deltas"])
+        assert blood["round_result"]["end_reason"] == "wall_empty" and tutorial_state["interaction"]["wall_remaining"] == 0
+        assert sum(d["delta"] for d in blood["round_result"]["score_deltas"]) == 0
+        assert json.loads(get("/api/state"))["ui"]["round_number"] == 0
+        report["tutorial_blood_verified"] = True
         game = GameState.new_game(timeout_config=TimeoutConfig())
         game.draw_tile("p0", now=time.monotonic())
         driver = DecisionDriver(game, {"p0": Control.BOT})

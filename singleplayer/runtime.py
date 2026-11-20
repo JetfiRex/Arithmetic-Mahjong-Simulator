@@ -18,6 +18,8 @@ from simulator import (ActionType, BloodBattleScoringAdapter, GameConfig, GameMo
 from simulator.game_state import GameStateError
 from singleplayer.bot_catalog import GROUPS, PROFILES, profile_states
 from singleplayer.round_review import RecordingRandom, RoundWallRecord
+from singleplayer.replay import RoundReplay, ReplayLibrary, claimed_tiles
+from simulator.state_snapshot import shift_game_clock
 from singleplayer.settings import (DEFAULT_HAND_PREPARATION_SECONDS, DEFAULT_TIMEOUTS,
                                    parse_hand_preparation_seconds, parse_timeouts)
 
@@ -68,6 +70,8 @@ class SinglePlayer:
         self.mode = GameMode.NORMAL
         self.allow_multiple_hu = True
         self.record = None
+        self.replays, self.replay, self.replay_id = ReplayLibrary(), None, None
+        self.experience, self.paused_at = "normal", None
         self.driver = None
         self.task = None
         self.gate = (None, 0.0)
@@ -89,8 +93,10 @@ class SinglePlayer:
         _check(type(profile) is str and profile in PROFILES, "未知 Bot 策略")
         _check(profile_states(self._models())[profile]["available"], "所选 Bot 缺少冻结模型，请换策略或配置模型")
 
-    def _advance(self, now):
+    def _advance(self, now, action=None):
         game = self.game
+        if self.replay:
+            self.replay.capture(game, now, action)
         if self.driver:
             self.driver.history.sync(game)
         if game.phase == GamePhase.WAITING_DRAW:
@@ -103,6 +109,8 @@ class SinglePlayer:
             self.driver.history.sync(game)
         if self.record:
             self.record.sync(game)
+        if self.replay:
+            self.replay.capture(game, now)
         if game.phase == GamePhase.ROUND_ENDED and game.round_result is not None and self.phase == TablePhase.PLAYING:
             self.phase = TablePhase.REVIEWING
             self.settings_revision += 1
@@ -118,17 +126,17 @@ class SinglePlayer:
         action_id = result.get("action_id")
         fallback = bool(result.get("error")) or action_id not in {a.action_id for a in task.request.legal_actions}
         try:
-            task.driver.submit(task.request.decision_id, action_id, now=now, fallback=fallback)
+            action = task.driver.submit(task.request.decision_id, action_id, now=now, fallback=fallback)
         except DecisionError:
             task.driver.invalidate(task.request.player_id)
             return
         self.counts["default" if fallback else result.get("status", "worker_unavailable")] += 1
-        self._advance(now)
+        self._advance(now, {"player_id": task.player_id, "label": action.action_type.value})
 
     def tick(self, *, now=None):
         with self.lock:
             timestamp = self._now(now)
-            if self.phase != TablePhase.PLAYING:
+            if self.phase != TablePhase.PLAYING or self.paused_at is not None:
                 return
             self.game.expire_timers(timestamp)
             self._advance(timestamp)
@@ -191,7 +199,7 @@ class SinglePlayer:
             fingerprint = json.dumps(command, ensure_ascii=False, sort_keys=True)
             if cid in self.seen_commands:
                 _check(self.seen_commands[cid] == fingerprint, "重复编号内容不同")
-                return self.view(now=timestamp)
+                return self.view(now=timestamp, teaching=command.get("view") == "teaching")
             kind = command.get("type")
             if kind in {"set_bot", "start"}:
                 _check(self.phase in {TablePhase.SETUP, TablePhase.ARRANGING}, "只能在开局前或安排下一局时修改配置")
@@ -210,6 +218,8 @@ class SinglePlayer:
                     _check(type(multiple) is bool, "请指定是否允许一炮多响")
                     mode = command.get("mode", self.mode.value)
                     _check(type(mode) is str and mode in {m.value for m in GameMode}, "未知牌局模式")
+                    experience = command.get("experience", "normal")
+                    _check(type(experience) is str and experience in {"normal", "teaching"}, "未知游玩模式")
                     _check(command.get("round_id") == self.game.round_id, "牌局已变化，请重新操作")
                     for profile in self.profiles.values():
                         self._check_profile(profile)
@@ -241,6 +251,9 @@ class SinglePlayer:
                     self.driver = DecisionDriver(self.game, controls, VisibleHistory(self.game))
                     self.round_number += 1
                     self.record = RoundWallRecord.begin(self.game, self.round_number, rng)
+                    self.experience, self.paused_at = experience, None
+                    self.replay = RoundReplay(self.game, self.round_number, experience, self.profiles, timestamp)
+                    self.replay_id = self.replays.add(self.replay.data, self.game.round_id)
                     self.timeouts, self.mode, self.allow_multiple_hu = dict(vars(settings)), rules.mode, multiple
                     self.hand_preparation_seconds = preparation
                     self.phase = TablePhase.PLAYING
@@ -251,17 +264,32 @@ class SinglePlayer:
                 _check(self.phase == TablePhase.REVIEWING, "当前不在赛后查看阶段")
                 self.phase = TablePhase.ARRANGING
                 self.settings_revision += 1
+            elif kind in {"pause", "resume"}:
+                _check(self.phase == TablePhase.PLAYING, "当前没有进行中的牌局")
+                _check(command.get("round_id") == self.game.round_id, "该操作属于旧牌局")
+                if kind == "pause" and self.paused_at is None:
+                    self.paused_at = timestamp
+                elif kind == "resume" and self.paused_at is not None:
+                    offset = max(0.0, timestamp - self.paused_at)
+                    shift_game_clock(self.game, offset)
+                    if self.task:
+                        self.task.deadline += offset
+                    self.gate = (self.gate[0], self.gate[1] + offset)
+                    if self.replay:
+                        self.replay.origin += offset
+                    self.paused_at = None
             else:
                 _check(self.phase == TablePhase.PLAYING, "请先开始本局")
                 _check(command.get("round_id") == self.game.round_id, "该操作属于旧牌局")
+                _check(self.paused_at is None or kind == "move", "牌局已暂停，请先继续")
                 if kind in {"discard", "move", "chi"}:
                     _check(command.get("hand_revision") == self.hand_revision, "手牌已变化，请重新选择")
                 self._game_command(kind, command, timestamp)
-                self._advance(timestamp)
+                self._advance(timestamp, None if kind == "move" else {"player_id": "p0", "label": command.get("action", kind)})
             self.seen_commands[cid] = fingerprint
             while len(self.seen_commands) > 2048:
                 self.seen_commands.popitem(last=False)
-            return self.view(now=timestamp)
+            return self.view(now=timestamp, teaching=command.get("view") == "teaching")
 
     def _game_command(self, kind, command, now):
         game, pid = self.game, "p0"
@@ -295,11 +323,11 @@ class SinglePlayer:
             _check(self.record is not None and self.record.valid, "本局无完整牌序记录")
             return self.record.to_dict()
 
-    def view(self, *, now=None):
+    def view(self, *, now=None, teaching=False):
         with self.lock:
-            timestamp = self._now(now)
+            timestamp = self.paused_at if self.paused_at is not None else self._now(now)
             game = self.game
-            result = game.to_public_dict(viewer_player_id="p0")
+            result = game.to_public_dict(viewer_player_id="p0", reveal_hands=teaching)
             result["resolved_actions"] = []
             visible = {"round_started", "initial_hands_dealt", "tile_drawn", "tile_discarded", "round_ended", "chi_applied", "peng_applied", "ming_gang_applied", "an_gang_applied", "jia_gang_declared", "win_settled"}
             result["event_log"] = [
@@ -327,6 +355,7 @@ class SinglePlayer:
                 table={"phase": self.phase.value, "revision": self.settings_revision,
                        "allow_multiple_hu": self.allow_multiple_hu, "mode": self.mode.value,
                        "hand_preparation_seconds": self.hand_preparation_seconds,
+                       "experience": self.experience, "paused": self.paused_at is not None,
                        "wall_review_available": self.phase in {TablePhase.REVIEWING, TablePhase.ARRANGING}
                            and self.record is not None and self.record.valid},
                 bot_play={"enabled": True, "profiles": PROFILES, "profile_groups": GROUPS,
@@ -340,6 +369,11 @@ class SinglePlayer:
                     "timeout_settings": self.timeouts, "hand_ordering_allowed": started and game.can_organize_hand("p0"),
                     "editing_allowed": False, "scene": "", "scenes": {}, "phase_history": [],
                     "drawn_tile_id": game.drawn_tile_id if game.current_player().player_id == "p0" else None})
+            if teaching:
+                result["study"] = {"drawn_tile_id": game.drawn_tile_id,
+                                   "self_draw_allowed": not game.turn_hu_prompt_passed,
+                                   "claimed_tiles": claimed_tiles(game),
+                                   "min_fan": getattr(game.rule_adapter, "min_fan", 1)}
             stable = {k: v for k, v in result.items() if k != "server_now"}
             signature = json.dumps(stable, ensure_ascii=False, sort_keys=True)
             if signature != self.signature:

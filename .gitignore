@@ -36,6 +36,10 @@ htmlcov/
 *.7z
 *.zip
 *.rar
+*.pkg
+*.deb
+*.rpm
+*.pdb
 
 # Editor, agent and operating-system files.
 .idea/
@@ -53,6 +57,21 @@ Thumbs.db
 .env.*
 *.env
 *.log
+*.tmp
+*.bak
+*.orig
+*.rej
+
+# Local saved states and SQLite sidecar files.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
 
 # Training data, checkpoints and experiments stay local.
 # Publish the selected frozen inference exports under models/ instead.

@@ -10,6 +10,10 @@
   <link rel="stylesheet" href="/singleplayer.css">
   <script src="/client.js" defer></script>
   <script src="/practice.js" defer></script>
+  <script src="/calculator.js" defer></script>
+  <script src="/study.js" defer></script>
+  <script src="/tutorial.js" defer></script>
+  <script src="/reference.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body class="single-player" data-screen="home">
@@ -18,14 +22,14 @@
       <div class="home-brand"><img src="/tiles/app_icon.png" alt="算术麻将标志" width="104" height="104"><div><p class="home-eyebrow">ARITHMETIC MAHJONG</p><h1 id="home-title">算术麻将</h1><p class="home-tagline">算术麻将是一个开放世界冒险桌游！</p></div></div>
       <div class="home-section-heading"><h2>选择你的模式</h2><span>学习 · 对局 · 分析 · 练习</span></div>
       <nav class="mode-grid" aria-label="选择模式">
-        <button class="mode-card" data-mode="tutorial"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#book-open"></use></svg><span class="mode-badge">界面预览</span></span><strong>新手教程</strong><span class="mode-description">跟随一场示范局，逐步认识算术麻将。</span><span class="mode-card-link">查看示范局 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></span></button>
-        <button class="mode-card mode-card--play" data-mode="normal"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#layers"></use></svg><span class="mode-badge" id="normal-mode-badge">开始对局</span></span><strong>普通模式</strong><span class="mode-description">与三家 Bot 同桌，按自己的节奏认真打一局。</span><span class="mode-card-link" id="normal-mode-link">进入牌桌 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></span></button>
-        <button class="mode-card" data-mode="teaching"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#compass"></use></svg><span class="mode-badge">界面预览</span></span><strong>教学模式</strong><span class="mode-description">在对局中借助听牌、出牌和向听辅助。</span><span class="mode-card-link">查看辅助牌桌 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></span></button>
-        <button class="mode-card" data-mode="calculator"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#calculator"></use></svg><span class="mode-badge">界面预览</span></span><strong>计算模式</strong><span class="mode-description">从 13 张手牌出发，查看完整牌型分析。</span><span class="mode-card-link">查看分析工具 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></span></button>
-        <button class="mode-card" data-mode="practice"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#target"></use></svg><span class="mode-badge">开始练习</span></span><strong>听牌练习</strong><span class="mode-description">观察 13 张手牌，判断听什么，或者不能听。</span><span class="mode-card-link">进入练习 <svg class="icon"><use href="/assets/icons.svg#arrow-right"></use></svg></span></button>
+        <button class="mode-card" data-mode="tutorial"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#book-open"></use></svg></span><strong>新手教程</strong><span class="mode-description">从牌面、拖牌和胡法开始，亲手体验吃碰杠与血战赔付。</span></button>
+        <button class="mode-card mode-card--play" data-mode="normal"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#layers"></use></svg></span><strong>普通模式</strong><span class="mode-description">与三家 Bot 同桌，按自己的节奏认真打一局。</span></button>
+        <button class="mode-card" data-mode="teaching"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#compass"></use></svg></span><strong>教学模式</strong><span class="mode-description">查看四家手牌，在真实对局中比较出牌。</span></button>
+        <button class="mode-card" data-mode="calculator"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#calculator"></use></svg></span><strong>计算模式</strong><span class="mode-description">13 张看进张，14 张比较出牌与后续价值。</span></button>
+        <button class="mode-card" data-mode="practice"><span class="mode-card-top"><svg class="icon"><use href="/assets/icons.svg#target"></use></svg></span><strong>听牌练习</strong><span class="mode-description">观察 13 张手牌，判断听什么，或者不能听。</span></button>
       </nav>
       <p id="home-game-notice" class="home-game-notice" role="status" hidden></p>
-      <footer class="home-footer"><span>单机版 · 离线游玩</span><span>教程、教学与计算模式内容准备中</span></footer>
+      <footer class="home-footer"><span>单机版 · 离线游玩</span><button class="text-button" data-mode="replay">复盘回放 ↗</button></footer>
     </div>
   </main>
 
@@ -40,8 +44,11 @@
     </div>
   </header>
 
+  <button class="reference-toggle" id="reference-toggle" type="button" aria-controls="reference-dialog" aria-haspopup="dialog" aria-expanded="false"><svg class="icon"><use href="/assets/icons.svg#book-open"></use></svg><span>规则速查</span></button>
+
   <div class="workspace" id="normal-workspace" hidden>
     <main class="play-area">
+      <section class="study-toolbar" id="study-toolbar" aria-label="教学控制" hidden><div><strong>教学对局</strong><span>操作自己，也能观察三家手牌</span></div><label><input id="study-reveal" type="checkbox" checked>显示三家手牌</label><button id="study-pause" class="secondary-button">暂停思考</button><button id="study-to-analysis" class="secondary-button">查看分析 ↓</button><button class="text-button" data-mode="replay">复盘回放 ↗</button></section>
       <section class="table-surface" aria-label="单机牌桌">
         <div class="table-topline"><span class="table-mode" id="table-mode">SINGLE PLAYER <span>单机人机对局</span></span><span id="wall-counter">牌山 —</span></div>
         <div id="opponent-seats" class="opponent-seats" hidden></div>
@@ -76,35 +83,78 @@
     </div>    <aside class="developer-panel" id="opponents-panel" aria-label="对手信息">
       <section class="table-panel"><div class="dialog-heading"><h2>Bot 对手</h2><button type="button" class="icon-button mobile-only" id="opponents-close" aria-label="关闭对手信息">×</button></div><div id="opponent-roster"></div><p class="setup-status">一名玩家与三家 Bot 对局。开局前可选择对手策略。</p></section>
     </aside>
+    <aside id="study-panel" class="study-panel" hidden>
+      <div class="preview-panel-heading"><h2>对局分析</h2><span class="quiet-tag" id="study-completeness">等待局面</span></div>
+      <div class="study-controls"><label>分析玩家<select id="study-player"><option value="p0">我</option><option value="p1">下家</option><option value="p2">对家</option><option value="p3">上家</option></select></label><label>信息视角<select id="study-perspective"><option value="player">该玩家视角</option><option value="omniscient">全明牌视角</option></select></label></div>
+      <p class="calc-hint" id="study-perspective-note">按该玩家自己的手牌、弃牌与副露计算。</p>
+      <div class="study-run"><label><input id="study-auto" type="checkbox" checked>持续分析</label><label>出牌候选<select id="study-limit"><option value="3">前 3 项</option><option value="5" selected>前 5 项</option><option value="10">前 10 项</option><option value="0">全部（含增加向听）</option></select></label><button id="study-analyze" class="primary-button">分析当前局面</button></div>
+      <p id="study-status" class="calc-hint" role="status">开局后展示向听、进张和出牌评价。</p>
+      <div id="study-results" class="study-results"></div>
+      <p class="study-model-note">默认比较最低向听的出牌；持续分析会保存进度、更新排序。选择“全部”可另看增加向听的方案。评价只计算连续进张及普通自摸计番，不包含放铳风险或无效摸牌后的等待。</p>
+    </aside>
   </div>
 
   <main id="mode-preview" class="mode-preview" hidden>
     <section data-mode-screen="tutorial" aria-labelledby="tutorial-title" hidden>
-      <div class="mode-page-heading"><div><span class="mode-kicker">从第一局开始</span><h1 id="tutorial-title">新手教程</h1><p>通过一场示范局，认识牌面、操作与成牌方式。</p></div><span class="preview-badge">界面预览</span></div>
-      <div class="preview-columns">
-        <section class="preview-board"><div class="preview-board-heading"><span>示范牌桌</span><span>内容准备中</span></div><div class="preview-board-center"><svg class="icon"><use href="/assets/icons.svg#book-open"></use></svg><h2>你的第一场示范局</h2><p>跟随牌局，一步一步学习。</p><button class="preview-primary" disabled>开始示范局</button></div><div class="preview-hand-zone"><span>示范手牌</span><div class="preview-hand" data-hand-preview="backs" aria-label="示范手牌占位区域"></div></div></section>
-        <aside class="preview-panel"><span class="mode-kicker">跟着牌局学</span><h2>示范讲解</h2><div class="empty-explanation"><svg class="icon"><use href="/assets/icons.svg#book-open"></use></svg><strong>示范局内容准备中</strong><p>这里将展示当前步骤的讲解，以及需要关注的牌和操作。</p></div><div class="preview-progress"><span>演示进度</span><span>— / —</span></div><div class="preview-progress-track"></div><div class="preview-button-row"><button class="secondary-button" disabled>上一步</button><button class="primary-button" disabled>下一步</button></div></aside>
+      <div class="mode-page-heading"><div><span class="mode-kicker">从第一局开始</span><h1 id="tutorial-title">新手教程</h1><p>跟着固定示范局，一步步认识算式、刻子和胡牌。</p></div><button class="secondary-button" id="tutorial-restart">重来第一步</button></div>
+      <nav id="tutorial-chapters" class="tutorial-chapters" aria-label="六步教程目录"></nav>
+      <div class="tutorial-navigation"><button class="secondary-button" id="tutorial-previous" disabled>上一条</button><div><span id="tutorial-progress-label">— / —</span><span id="tutorial-completed" class="quiet-tag" hidden>已完成</span></div><button class="primary-button" id="tutorial-next" disabled>下一条</button></div>
+      <p id="tutorial-error" class="inline-error" role="alert" hidden></p>
+      <div class="tutorial-layout">
+        <section class="tutorial-board" aria-label="固定示范牌桌">
+          <div id="tutorial-blood-panel" class="tutorial-blood-panel" hidden><strong id="tutorial-blood-status"></strong><div id="tutorial-blood-scores" class="tutorial-blood-scores" aria-label="血战玩家状态与收支"></div></div>
+          <div id="tutorial-opponents" class="tutorial-opponents" aria-label="示范对手"></div>
+          <div id="tutorial-live-table" hidden><span id="tutorial-wall-count"></span><div id="tutorial-my-river" class="tutorial-river" aria-label="我的弃牌"></div></div>
+          <div id="tutorial-visual" class="tutorial-visual"><p id="tutorial-text" class="tutorial-text" aria-live="polite" tabindex="-1">正在准备这副固定手牌…</p><div id="tutorial-example" class="tutorial-example" aria-label="当前讲解示意"></div></div>
+          <div class="tutorial-inline-help">
+            <p id="tutorial-choice-feedback" class="calc-hint" role="status" hidden></p><div id="tutorial-chi-choices" class="tutorial-chi-choices" aria-label="选择吃法" hidden></div>
+            <button class="secondary-button" id="tutorial-assist" hidden disabled>帮我整理</button><p id="tutorial-assist-note" class="calc-hint" hidden>30 秒后可求助；届时也会自动帮忙整理。</p>
+            <div id="tutorial-fans" class="tutorial-fans" hidden></div><button class="text-button" id="tutorial-reference" hidden>查询番数表 ↗</button>
+            <div id="tutorial-blood-payments" class="tutorial-blood-payments" aria-label="实际自摸赔付" hidden></div><button class="secondary-button" id="tutorial-blood-result" hidden>查看整局赔付</button>
+          </div>
+          <div id="tutorial-meld-area" hidden></div>
+          <div class="tutorial-hand-zone"><div class="tutorial-hand-heading"><strong id="tutorial-hand-label">我的手牌</strong><span id="tutorial-hand-count">14 张</span></div><div id="tutorial-hand" class="tutorial-hand" aria-label="固定的十四张示范手牌"></div><p id="tutorial-feedback" class="tutorial-feedback" role="status" hidden></p></div>
+          <div class="tutorial-board-actions" id="tutorial-board-actions"><span id="tutorial-action-note">跟随讲解，先认识这副牌。</span><div class="tutorial-action-buttons"><button class="primary-button" id="tutorial-chi" hidden disabled>吃</button><button class="primary-button" id="tutorial-peng" hidden disabled>碰</button><button class="primary-button" id="tutorial-gang" hidden disabled>杠</button><button class="primary-button" id="tutorial-hu" disabled>胡</button></div></div>
+          <p id="tutorial-next-note" class="calc-hint" hidden></p>
+        </section>
       </div>
     </section>
 
-    <section data-mode-screen="teaching" aria-labelledby="teaching-title" hidden>
-      <div class="mode-page-heading"><div><span class="mode-kicker">边打边学</span><h1 id="teaching-title">教学模式</h1><p>在对局中查看听牌、出牌分析与向听辅助。</p></div><span class="preview-badge">界面预览</span></div>
-      <div class="preview-columns">
-        <section class="preview-board">
-          <div class="preview-board-heading"><span>辅助牌桌</span><span>教学对局准备中</span></div>
-          <div class="preview-opponents"><div>上家<div class="preview-mini-backs"></div></div><div>对家<div class="preview-mini-backs"></div></div><div>下家<div class="preview-mini-backs"></div></div></div>
-          <div class="preview-board-center"><svg class="icon"><use href="/assets/icons.svg#compass"></use></svg><h2>每一步，都可以多看一种可能</h2><p>右侧辅助区将跟随手牌展示分析。</p></div>
-          <div class="preview-hand-zone"><span>我的手牌</span><div class="preview-hand" data-hand-preview="backs" aria-label="教学模式手牌占位区域"></div></div>
-        </section>
-        <aside class="preview-panel helper-preview" data-helper-tabs><div class="preview-panel-heading"><h2>对局辅助</h2><span class="quiet-tag">准备中</span></div><div class="helper-tabs" role="tablist" aria-label="教学辅助工具"><button id="teaching-waits-tab" role="tab" data-helper="waits" aria-selected="true" aria-controls="teaching-waits">听牌计算器</button><button id="teaching-analysis-tab" role="tab" data-helper="analysis" aria-selected="false" aria-controls="teaching-analysis" tabindex="-1">出牌分析</button><button id="teaching-shanten-tab" role="tab" data-helper="shanten" aria-selected="false" aria-controls="teaching-shanten" tabindex="-1">向听计算器</button></div><div id="teaching-waits" class="helper-content" role="tabpanel" aria-labelledby="teaching-waits-tab" data-helper-panel="waits"><span class="analysis-label">可听的牌</span><div class="analysis-empty">—</div><p>这里将列出待牌，并展示对应的成牌拆解。</p></div><div id="teaching-analysis" class="helper-content" role="tabpanel" aria-labelledby="teaching-analysis-tab" data-helper-panel="analysis" hidden><span class="analysis-label">出牌方案</span><div class="analysis-empty">—</div><p>这里将比较各出牌方案和后续进张。</p></div><div id="teaching-shanten" class="helper-content" role="tabpanel" aria-labelledby="teaching-shanten-tab" data-helper-panel="shanten" hidden><span class="analysis-label">当前向听数</span><div class="analysis-empty">—</div><p>这里将显示牌型距离，以及能够改善手牌的进张。</p></div><div class="preview-note">辅助功能准备中</div></aside>
+    <section data-mode-screen="replay" aria-labelledby="replay-title" hidden>
+      <div class="mode-page-heading"><div><span class="mode-kicker">回到每一次选择</span><h1 id="replay-title">复盘回放</h1><p>逐步查看牌局，停在出牌前比较不同选择。</p></div><button class="secondary-button" id="replay-return" hidden>返回当前牌桌</button></div>
+      <section class="preview-panel replay-library"><label>本次打开的牌谱<select id="replay-select" aria-label="选择牌谱"><option value="">暂无牌谱</option></select></label><button class="secondary-button" id="replay-refresh">刷新列表</button><button class="secondary-button" id="replay-import">导入牌谱</button><input type="file" id="replay-file" accept=".json,application/json" hidden><button class="primary-button" id="replay-save" disabled>保存牌谱</button><p class="calc-hint">本次会话保留最近 20 局。结束的牌局可回放，保存为 JSON 后可在下次打开时导入。</p><p id="replay-error" class="inline-error" role="alert" hidden></p></section>
+      <div class="replay-layout">
+        <div class="replay-main">
+          <section class="preview-panel replay-controls"><div class="replay-transport"><button id="replay-prev" class="secondary-button" disabled>上一步</button><button id="replay-play" class="primary-button" disabled>播放</button><button id="replay-next" class="secondary-button" disabled>下一步</button><label>速度<select id="replay-speed"><option value="2000">0.5×</option><option value="1000" selected>1×</option><option value="500">2×</option><option value="250">4×</option></select></label><span id="replay-step">— / —</span></div><input id="replay-progress" type="range" min="0" max="0" value="0" aria-label="回放进度" disabled><p id="replay-event" role="status">选择或导入一局牌谱。</p><div class="replay-view-options"><label>观看视角<select id="replay-viewer"><option value="p0">我</option><option value="p1">下家</option><option value="p2">对家</option><option value="p3">上家</option></select></label><label><input id="replay-reveal" type="checkbox" checked>显示全部手牌</label><label><input id="replay-wall-toggle" type="checkbox">显示剩余牌山</label></div></section>
+          <div id="replay-board" class="replay-board"></div>
+          <section id="replay-wall" class="preview-panel" hidden><h2>剩余牌山 · 下一张在最前</h2><div id="replay-wall-tiles" class="replay-tiles"></div></section>
+        </div>
+        <div id="replay-analysis"></div>
       </div>
     </section>
 
     <section data-mode-screen="calculator" aria-labelledby="calculator-title" hidden>
-      <div class="mode-page-heading"><div><span class="mode-kicker">把一副牌看明白</span><h1 id="calculator-title">计算模式</h1><p>录入 13 张手牌，查看听牌、出牌分析与向听信息。</p></div><span class="preview-badge">界面预览</span></div>
-      <div class="preview-columns calculator-columns">
-        <section class="preview-panel calculator-input"><div class="preview-panel-heading"><h2>手牌录入</h2><span class="quiet-tag">0 / 13 张</span></div><div class="preview-hand empty-hand" data-hand-preview="slots" aria-label="13 张手牌录入占位区域"></div><div class="palette-heading"><h3>选择牌面</h3><button class="text-button" disabled>清空手牌</button></div><div class="preview-palette" data-palette-preview aria-label="待开放的牌面录入区域"></div><p class="preview-note">手牌录入与分析功能准备中</p><button class="primary-button preview-wide-button" disabled>分析这副手牌</button></section>
-        <aside class="preview-panel"><h2>牌型分析</h2><div class="analysis-summary"><div><span>向听数</span><strong>—</strong></div><div><span>有效进张</span><strong>—</strong></div><div><span>未见张数</span><strong>—</strong></div></div><div class="analysis-placeholder"><h3>听牌计算器</h3><p>待牌、成牌拆解和起胡说明。</p></div><div class="analysis-placeholder"><h3>出牌分析</h3><p>各出牌方案与后续进张的比较。</p></div><div class="analysis-placeholder"><h3>向听计算器</h3><p>当前牌型距离与可改善手牌的进张。</p></div></aside>
+      <div class="mode-page-heading"><div><span class="mode-kicker">把一副牌看明白</span><h1 id="calculator-title">计算模式</h1><p>13 张看等什么，14 张比较打什么。展开候选，沿着进张继续分析。</p></div><span class="preview-badge">连续进张评价</span></div>
+      <div class="calc-layout">
+        <section class="preview-panel calc-input">
+          <div class="preview-panel-heading"><h2>手牌录入 <small id="calc-hand-count">0 / 13 或 14 张</small></h2><div class="calc-tools"><button class="text-button" id="calc-example">载入示例</button><button class="text-button" id="calc-clear">清空</button></div></div>
+          <p class="calc-hint">点击牌面加入，点击手牌移除。支持拖动排序，键盘可用 Alt 加左右方向键。</p>
+          <div class="calc-hand" id="calc-hand" aria-label="可拖动排序的计算手牌"></div>
+          <div class="calc-drawn-setting" id="calc-drawn-setting" hidden><label for="calc-drawn">按哪张摸入牌计番</label><select id="calc-drawn"></select><span>金色边框标出摸入牌</span></div>
+          <div class="calc-input-tabs" aria-label="选择录入区域"><button id="calc-tab-hand" aria-pressed="true">加入手牌</button><button id="calc-tab-visible" aria-pressed="false">加入其他已见牌</button></div>
+          <div class="preview-palette calc-palette" id="calc-palette" aria-label="选择要录入的牌"></div>
+          <details class="calc-visible-section" id="calc-visible-section"><summary>其他已见牌 <span id="calc-visible-count">0 张</span></summary><p class="calc-hint">可录入弃牌和他家副露；同一张牌只录入一次。未见牌总数会自动扣除。</p><div id="calc-visible" class="calc-visible"></div></details>
+          <div class="calc-settings"><label>评价起胡番 <input id="calc-min-fan" type="number" min="0" max="6" step="1" value="1" required></label><span>0 表示不设门槛；待牌始终按牌型列出。</span><label class="calc-draw-limit"><input id="calc-limit-draws" type="checkbox">限制剩余自摸次数</label><input id="calc-draws" type="number" min="0" max="108" step="1" value="5" aria-label="剩余自摸次数" required disabled></div>
+          <p id="calc-error" class="inline-error" role="alert" hidden></p>
+          <div class="calc-run"><span id="calc-status" role="status">录入 13 或 14 张后开始分析</span><button class="primary-button" id="calc-analyze" disabled>分析这副手牌</button></div>
+        </section>
+        <section class="preview-panel calc-output" id="calc-output" aria-labelledby="calc-result-title">
+          <div class="preview-panel-heading"><h2 id="calc-result-title">牌型分析</h2><span id="calc-completeness" class="quiet-tag">等待录入</span></div>
+          <div class="analysis-summary"><div><span>向听数</span><strong id="calc-shanten">—</strong></div><div><span>连续进张价值</span><strong id="calc-value">—</strong></div><div><span>未见张数</span><strong id="calc-unseen">—</strong></div></div>
+          <p id="calc-result-note" class="calc-hint">输入手牌后，这里会展示向听、进张、出牌评分及成牌分组。</p>
+          <div id="calc-results"></div>
+        </section>
+        <section class="calc-model-note"><h2>这项评价如何计算</h2><p>每次只展开能降低向听数的摸牌，以该牌未见张数除以全部未见张数加权；摸走一张后更新牌数。14 张在最低向听的出牌中取最高值。达到起胡门槛时，胡牌评价为 2 的 max（番数，1）次方，按普通自摸计番。</p><p>分数用于比较连续进张路线。当前不计无效摸牌后的等待收益、退向听和对手行动；可用张数为 0 的空听仍会展示分组。较复杂的牌型可继续分析，复用已完成的缓存。</p></section>
       </div>
     </section>
 
@@ -183,6 +233,19 @@
   <div id="wall-review-content"></div>
 </dialog>
 
+  <dialog id="tutorial-result-dialog" class="result-dialog" aria-labelledby="tutorial-result-title"><div class="dialog-heading"><div><span class="eyebrow">FIRST WIN</span><h2 id="tutorial-result-title">你胡牌啦！</h2></div><button class="icon-button" type="button" data-close="tutorial-result-dialog" aria-label="关闭示范胡牌结果">×</button></div><div id="tutorial-result-content"></div><div class="dialog-footer"><button class="secondary-button" id="tutorial-result-reference">查询番数表</button><button class="primary-button" id="tutorial-result-continue">继续讲解</button></div></dialog>
+  <dialog id="tutorial-blood-dialog" class="result-dialog" aria-labelledby="tutorial-blood-title"><div class="dialog-heading"><div><span class="eyebrow">BLOOD BATTLE</span><h2 id="tutorial-blood-title">血战整局结算</h2></div><button class="icon-button" type="button" data-close="tutorial-blood-dialog" aria-label="关闭血战整局结算">×</button></div><div id="tutorial-blood-result-content"></div><div class="dialog-footer"><button class="primary-button" id="tutorial-blood-continue">继续讲解</button></div></dialog>
+
+  <dialog id="reference-dialog" class="reference-dialog" aria-labelledby="reference-title">
+    <div class="dialog-heading"><div><span class="eyebrow">REFERENCE</span><h2 id="reference-title">规则速查</h2></div><button id="reference-close" class="icon-button" type="button" aria-label="关闭规则速查">×</button></div>
+    <div class="reference-tabs" role="tablist" aria-label="速查分类"><button id="reference-tab-rules" role="tab" aria-selected="true" aria-controls="reference-rules">规则</button><button id="reference-tab-pool" role="tab" aria-selected="false" aria-controls="reference-pool" tabindex="-1">牌池构成</button><button id="reference-tab-fans" role="tab" aria-selected="false" aria-controls="reference-fans" tabindex="-1">番数表</button></div>
+    <label class="reference-search">搜索当前分类<input id="reference-search" type="search" placeholder="例如：刻子、清龙、三门齐、7" autocomplete="off"></label>
+    <p id="reference-status" class="calc-hint" role="status">首次打开时读取本机速查内容。</p>
+    <section id="reference-rules" class="reference-panel" role="tabpanel" aria-labelledby="reference-tab-rules"></section>
+    <section id="reference-pool" class="reference-panel" role="tabpanel" aria-labelledby="reference-tab-pool" hidden></section>
+    <section id="reference-fans" class="reference-panel" role="tabpanel" aria-labelledby="reference-tab-fans" hidden></section>
+    <p class="reference-clock-note">查看速查不会暂停计时中的对局；教学模式可先点击“暂停思考”。</p>
+  </dialog>
   <div id="toast" class="toast" role="status" hidden></div>
 </body>
 </html>

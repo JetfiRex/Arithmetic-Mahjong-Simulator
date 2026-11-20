@@ -9,23 +9,27 @@ window.singlePlayer = {
   settlementKey: null,
   currentMode: "home",
   normalSetupPending: false,
-  modeTitles: { home: "首页", tutorial: "新手教程", normal: "普通模式", teaching: "教学模式", calculator: "计算模式", practice: "听牌练习" },
+  modeTitles: { home: "首页", tutorial: "新手教程", normal: "普通模式", teaching: "教学模式", calculator: "计算模式", practice: "听牌练习", replay: "复盘回放" },
 
-  poll() { return fetch("/api/state", { cache: "no-store" }); },
+  isTable() { return ["normal", "teaching"].includes(this.currentMode); },
+  poll() { return fetch(this.currentMode === "teaching" ? "/api/state?teaching=true" : "/api/state", { cache: "no-store" }); },
 
   send(type, data) {
     return fetch("/api/action", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, command_id: crypto.randomUUID(), instance_id: state.instance_id,
         settings_revision: state.table.revision, round_id: state.round_id, hand_revision: state.hand_revision,
-        turn_window_id: state.turn_window_id, ...data }),
+        turn_window_id: state.turn_window_id, view: this.currentMode === "teaching" ? "teaching" : "normal", ...data }),
     });
   },
 
   initialize() {
     this.initialized = true;
     window.listeningPractice.initialize();
-    this.initializeNavigation();
+    window.handCalculator.initialize();
+    window.tableStudy.initialize();
+    window.beginnerTutorial.initialize();
+    window.ruleReference.initialize();
     $("local-rule-mode").onchange = () => {
       $("local-blood-bot-note").hidden = $("local-rule-mode").value !== "blood_battle";
     };
@@ -39,6 +43,9 @@ window.singlePlayer = {
     resultWall.id = "result-wall-review"; resultWall.type = "button"; resultWall.hidden = true;
     resultWall.onclick = () => { $("result-dialog").close(); this.openWallReview(); };
     $("next-round-button").before(resultWall);
+    const replayButton = element("button", "secondary-button", "复盘本局"); replayButton.id = "result-replay";
+    replayButton.onclick = () => { $("result-dialog").close(); window.tableStudy.preferredReplay = state.round_id; location.hash = "replay"; };
+    $("next-round-button").before(replayButton);
     $("local-timers-enabled").onchange = () => this.syncTimers();
     $("local-settings-form").onsubmit = async (event) => {
       event.preventDefault();
@@ -48,9 +55,10 @@ window.singlePlayer = {
       });
       if (await send("start", { timeouts, hand_preparation_seconds: Number($("local-hand-preparation").value),
         mode: $("local-rule-mode").value, allow_multiple_hu: $("local-multiple-hu").checked,
-        settings_revision: this.settingsRevision })) $("local-settings").close();
+        settings_revision: this.settingsRevision, experience: this.currentMode === "teaching" ? "teaching" : "normal" })) $("local-settings").close();
       else $("local-settings-error").textContent = $("toast").textContent;
     };
+    this.initializeNavigation();
   },
 
   initializeNavigation() {
@@ -105,11 +113,12 @@ window.singlePlayer = {
 
   navigate(mode) {
     const next = Object.hasOwn(this.modeTitles, mode) ? mode : "home";
+    const previous = this.currentMode;
     if (this.currentMode !== next) {
       document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
       if (dragging) endDrag(false);
       document.querySelectorAll(".developer-panel.open").forEach((panel) => panel.classList.remove("open"));
-      this.normalSetupPending = next === "normal";
+      this.normalSetupPending = ["normal", "teaching"].includes(next);
       this.currentMode = next;
       window.scrollTo(0, 0);
     }
@@ -117,7 +126,12 @@ window.singlePlayer = {
     this.renderNavigation();
     if (next === "practice") window.listeningPractice.enter();
     else window.listeningPractice.leave();
-    if (state && next === "normal") render();
+    if (next === "calculator") window.handCalculator.enter();
+    else window.handCalculator.clearDrag();
+    if (next === "tutorial" && previous !== next) window.beginnerTutorial.enter();
+    else if (next !== "tutorial") window.beginnerTutorial.leave();
+    if (previous !== next) window.tableStudy.enter(next, previous);
+    if (state && this.isTable()) { render(); poll(); }
   },
 
   renderNavigation() {
@@ -125,8 +139,8 @@ window.singlePlayer = {
     document.body.dataset.screen = mode;
     $("mode-home").hidden = mode !== "home";
     $("app-header").hidden = mode === "home";
-    $("normal-workspace").hidden = mode !== "normal";
-    $("mode-preview").hidden = ["home", "normal"].includes(mode);
+    $("normal-workspace").hidden = !this.isTable();
+    $("mode-preview").hidden = ["home", "normal", "teaching"].includes(mode);
     document.querySelectorAll("[data-mode-screen]").forEach((screen) => {
       screen.hidden = screen.dataset.modeScreen !== mode;
     });
@@ -135,12 +149,10 @@ window.singlePlayer = {
     const phase = state?.table?.phase;
     const notice = $("home-game-notice");
     notice.hidden = !["PLAYING", "REVIEWING", "ARRANGING"].includes(phase);
-    const message = phase === "PLAYING" ? "当前牌局仍在进行，计时继续。返回普通模式即可继续对局。"
+    const message = phase === "PLAYING" ? state?.table.paused ? "当前牌局已暂停。返回牌桌后点击继续对局。" : "当前牌局仍在进行，计时继续。返回普通模式或教学模式即可继续对局。"
       : phase === "REVIEWING" ? "本局已结束，返回普通模式可查看结算。" : "已准备安排下一局，返回普通模式可继续设置。";
     if (notice.textContent !== message) notice.textContent = message;
-    const badge = phase === "PLAYING" ? "对局进行中" : ["REVIEWING", "ARRANGING"].includes(phase) ? "继续牌局" : "开始对局";
-    if ($("normal-mode-badge").textContent !== badge) $("normal-mode-badge").textContent = badge;
-    if (mode === "normal" && state && this.normalSetupPending) {
+    if (this.isTable() && state && this.normalSetupPending) {
       this.normalSetupPending = false;
       if (["SETUP", "ARRANGING"].includes(phase)) this.openSettings();
     }
@@ -155,6 +167,11 @@ window.singlePlayer = {
   },
 
   renderActions() {
+    if (state.table.paused) {
+      $("action-status").textContent = "对局已暂停，可以整理手牌或查看分析";
+      action("继续对局", () => send("resume"), "primary");
+      return true;
+    }
     if (stage() === "HAND_PREPARATION") {
       $("action-status").textContent = "开局理牌中，可以拖动整理手牌；倒计时结束后开始行牌";
       return true;
@@ -185,7 +202,7 @@ window.singlePlayer = {
       const seconds = element("input"); seconds.type = "number"; seconds.min = 1; seconds.max = 600; seconds.step = "any"; seconds.value = value ?? fallback; seconds.setAttribute("aria-label", `${label}秒数`);
       row.append(enabled, element("strong", "", label), seconds, element("small", "", "秒")); $("local-timer-settings").append(row);
     }
-    $("local-timers-enabled").checked = Object.values(ui().timeout_settings).some((value) => value !== null);
+    $("local-timers-enabled").checked = this.currentMode === "teaching" && state.table.phase === "SETUP" ? false : Object.values(ui().timeout_settings).some((value) => value !== null);
     $("local-timers-enabled").disabled = ui().settings_locked;
     $("local-hand-preparation").value = state.table.hand_preparation_seconds ?? 30;
     $("local-hand-preparation").disabled = ui().settings_locked;
@@ -194,7 +211,7 @@ window.singlePlayer = {
     $("local-rule-mode").onchange();
     $("local-start").disabled = ui().settings_locked;
     $("local-start").firstChild.textContent = ui().started ? "确认开局 " : "开始本局 ";
-    $("local-settings-title").textContent = state.table.phase === "ARRANGING" ? "安排下一局" : "单机设置";
+    $("local-settings-title").textContent = state.table.phase === "ARRANGING" ? "安排下一局" : this.currentMode === "teaching" ? "教学对局设置" : "单机设置";
     $("local-settings-status").textContent = ui().settings_locked ? "本局配置已锁定；结束后可在下一局修改" : "你与三家 Bot 对局；模式、一炮多响和计时将在确认开局时生效";
     this.syncTimers(); this.renderBotSettings();
     if (!$("local-settings").open) $("local-settings").showModal();
@@ -287,7 +304,8 @@ window.singlePlayer = {
 
   render() {
     if (!this.initialized) this.initialize();
-    if (this.currentMode !== "normal") {
+    window.tableStudy.sync();
+    if (!this.isTable()) {
       this.setupInstance = state.instance_id;
       this.renderNavigation();
       return;
@@ -304,8 +322,9 @@ window.singlePlayer = {
     const canReview = ["REVIEWING", "ARRANGING"].includes(table.phase);
     $("local-wall-button").disabled = !canReview || !table.wall_review_available;
     $("result-wall-review").hidden = !canReview;
+    $("result-replay").hidden = !canReview;
     $("result-wall-review").disabled = !table.wall_review_available;
-    $("mode-label").textContent = "单机人机对局" + (state.config?.mode === "blood_battle" ? " · 血战" : "");
+    $("mode-label").textContent = (this.currentMode === "teaching" ? "教学对局" : "单机人机对局") + (state.config?.mode === "blood_battle" ? " · 血战" : "");
     if (stage() === "HAND_PREPARATION") {
       $("clock-label").textContent = "开局理牌";
       $("incoming-caption").textContent = "理牌结束后庄家摸牌";
@@ -342,7 +361,7 @@ window.singlePlayer = {
     }
     if (this.setupInstance !== state.instance_id) {
       this.setupInstance = state.instance_id;
-      if (this.currentMode === "normal") this.normalSetupPending = true;
+      if (this.isTable()) this.normalSetupPending = true;
     }
     this.renderNavigation();
   },

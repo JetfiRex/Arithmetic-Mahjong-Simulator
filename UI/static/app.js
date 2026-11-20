@@ -106,6 +106,7 @@ async function send(type, data = {}) {
   } finally {
     busy = false;
     document.body.classList.remove("working");
+    window.dispatchEvent(new Event("table-action-idle"));
   }
 }
 
@@ -153,7 +154,7 @@ function accept(next) {
 }
 
 function render() {
-  if (singlePlayer && singlePlayer.currentMode !== "normal") {
+  if (singlePlayer && !singlePlayer.isTable()) {
     singlePlayer.render();
     return;
   }
@@ -194,7 +195,7 @@ function render() {
   renderRecovery();
   if (singlePlayer) singlePlayer.render();
   if (!practice.recovery_pending && state.round_result && shownResult !== state.round_id
-      && (!singlePlayer || singlePlayer.currentMode === "normal" && state.table?.phase === "REVIEWING")) {
+      && (!singlePlayer || singlePlayer.isTable() && state.table?.phase === "REVIEWING")) {
     shownResult = state.round_id;
     showResult();
   }
@@ -362,7 +363,7 @@ function action(label, handler, className = "", disabled = false, symbol = null)
 
 function renderActions() {
   renderSection("actions", [state.round_id, stage(), selected, [...chiSelection], numberView,
-    ui().recovery_pending, state.table?.phase, me().win_order,
+    ui().recovery_pending, state.table?.phase, state.table?.paused, me().win_order,
     state.response_window, state.pending_action_detail, state.rob_kong_window,
     state.turn_options_by_player, state.turn_hu_prompt_passed, state.turn_gang_prompt_passed,
     state.current_turn_seat, state.round_result?.end_reason], () => {
@@ -436,7 +437,13 @@ function renderActions() {
 }
 
 function renderTimer() {
-  if (singlePlayer && singlePlayer.currentMode !== "normal") return;
+  if (singlePlayer && !singlePlayer.isTable()) return;
+  if (state?.table?.paused) {
+    $("timer").hidden = false;
+    const remaining = state.active_timer ? Math.max(0, state.active_timer.deadline_at - state.server_now) : null;
+    setTimerText(remaining === null ? "已暂停" : `${Math.ceil(remaining)}s · 已暂停`);
+    $("timer").classList.remove("urgent"); return;
+  }
   if (state && ui().recovery_pending) {
     const remaining = ui().recovery_remaining_seconds;
     $("timer").hidden = false;
@@ -466,14 +473,18 @@ function renderOpponents() {
     const seat = ((singlePlayer ? state.viewer_seat || 0 : 0) + offset) % 4;
     const player = state.players[seat];
     const active = state.phase === "WAITING_TURN_ACTION" && state.current_turn_seat === seat;
-    renderSection(`opponent-${seat}`, [state.round_id, player, active, numberView], () => {
+    const reveal = singlePlayer?.currentMode === "teaching" && $("study-reveal").checked && player.hand_tiles;
+    renderSection(`opponent-${seat}`, [state.round_id, player, active, numberView, !!reveal], () => {
       const panel = element("div", "opponent-seat");
       panel.classList.toggle("active", active);
       panel.dataset.seat = seat;
       const heading = element("div", "opponent-heading");
       heading.append(element("strong", "", player.name), element("span", "", `${player.is_dealer ? "庄 · " : ""}${player.is_out ? `已胡 · 第${player.win_order}位 · ` : ""}${player.hand_count} 张`));
       const backs = element("div", "opponent-hand");
-      for (let i = 0; i < player.hand_count; i++) backs.append(element("span", "mini-back"));
+      if (reveal) {
+        backs.classList.add("study-open-hand");
+        for (const value of player.hand_tiles) backs.append(tile(value));
+      } else for (let i = 0; i < player.hand_count; i++) backs.append(element("span", "mini-back"));
       panel.append(heading, backs, element("span", "opponent-score", `${player.score} 分`));
       if (singlePlayer) {
         const melds = element("div", "opponent-melds");

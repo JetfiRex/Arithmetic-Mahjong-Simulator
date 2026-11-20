@@ -13,6 +13,10 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from singleplayer.practice import PracticeBusy, PracticeService
+from singleplayer.calculator import CalculationBusy, CalculatorService
+from singleplayer.replay import validate_replay
+from singleplayer.tutorial import TutorialService
+from singleplayer.reference import reference_data
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,8 +25,10 @@ TILE_NAMES = {f"{i}.png" for i in range(21)} | {"24.png", "plus.png", "mult.png"
 ASSETS = {"icons.svg", "tile-back.svg", "LICENSE-lucide.txt"}
 
 
-def create_app(runtime, *, port=8772, practice_service=None):
+def create_app(runtime, *, port=8772, practice_service=None, calculator_service=None, tutorial_service=None):
     practice = practice_service if practice_service is not None else PracticeService()
+    calculator = calculator_service if calculator_service is not None else CalculatorService()
+    tutorial = tutorial_service if tutorial_service is not None else TutorialService()
     @asynccontextmanager
     async def lifespan(app):
         stop = Event()
@@ -44,11 +50,14 @@ def create_app(runtime, *, port=8772, practice_service=None):
             stop.set()
             await asyncio.to_thread(worker.join)
             await asyncio.to_thread(practice.close)
+            await asyncio.to_thread(calculator.close)
             await run_in_threadpool(runtime.close)
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.runtime = runtime
     app.state.practice = practice
+    app.state.calculator = calculator
+    app.state.tutorial = tutorial
     app.state.runtime_failed = False
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"])
     origins = {f"http://127.0.0.1:{port}", f"http://localhost:{port}"}
@@ -87,19 +96,19 @@ def create_app(runtime, *, port=8772, practice_service=None):
         return {"ok": True, "instance_id": runtime.instance_id}
 
     @app.get("/api/state")
-    def state():
+    def state(teaching: bool = False):
         healthy()
         with runtime.lock:
             runtime.tick()
-            return runtime.view()
+            return runtime.view(teaching=teaching)
 
-    async def read_command(request):
+    async def read_command(request, limit=16384):
         if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
             raise HTTPException(415, "请提交 JSON 操作")
         raw = bytearray()
         async for chunk in request.stream():
             raw.extend(chunk)
-            if len(raw) > 16384:
+            if len(raw) > limit:
                 raise HTTPException(413, "操作内容过大")
         try:
             command = json.loads(raw, parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)))
@@ -152,6 +161,33 @@ def create_app(runtime, *, port=8772, practice_service=None):
         except ValueError as exc:
             raise HTTPException(404, str(exc)) from None
 
+    @app.post("/api/calculator")
+    async def calculator_action(request: Request):
+        command = await read_command(request)
+        try:
+            return {"analysis": await calculator.calculate(command)}
+        except CalculationBusy as exc:
+            raise HTTPException(429, str(exc)) from None
+        except (ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(400, str(exc) if isinstance(exc, ValueError) else "计算参数不正确") from None
+
+    @app.get("/api/tutorial")
+    def tutorial_state():
+        return {"tutorial": tutorial.get()}
+
+    @app.post("/api/tutorial")
+    async def tutorial_action(request: Request):
+        command = await read_command(request)
+        try:
+            return {"tutorial": await run_in_threadpool(tutorial.dispatch, command)}
+        except (ValueError, KeyError, TypeError) as exc:
+            return JSONResponse({"error": str(exc) if isinstance(exc, ValueError) else "教程参数不正确",
+                                 "tutorial": tutorial.get()}, status_code=400)
+
+    @app.get("/api/reference")
+    def reference():
+        return reference_data()
+
     @app.get("/api/wall-record")
     def wall(round_id: str):
         healthy()
@@ -160,6 +196,30 @@ def create_app(runtime, *, port=8772, practice_service=None):
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
 
+    @app.get("/api/replays")
+    def replays():
+        with runtime.lock:
+            return {"replays": runtime.replays.list()}
+
+    @app.get("/api/replays/{identifier}")
+    def replay(identifier: str):
+        try:
+            with runtime.lock:
+                return {"replay": runtime.replays.get(identifier)}
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.post("/api/replays/import")
+    async def import_replay(request: Request):
+        data = await read_command(request, limit=16 * 1024 * 1024)
+        try:
+            validated = await run_in_threadpool(validate_replay, data)
+            with runtime.lock:
+                identifier = runtime.replays.add(validated)
+            return {"id": identifier, "replay": validated}
+        except (ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(400, str(exc) if isinstance(exc, ValueError) else "牌谱格式不正确") from None
+
     @app.get("/")
     @app.get("/index.html")
     def index():
@@ -167,7 +227,7 @@ def create_app(runtime, *, port=8772, practice_service=None):
 
     @app.get("/{path:path}")
     def asset(path: str):
-        if path in {"app.js", "client.js", "practice.js", "styles.css", "singleplayer.css"}:
+        if path in {"app.js", "client.js", "practice.js", "calculator.js", "study.js", "tutorial.js", "reference.js", "styles.css", "singleplayer.css"}:
             return FileResponse(STATIC / path)
         if path.startswith("tiles/") and path[6:] in TILE_NAMES:
             return FileResponse(ROOT / "pictures" / path[6:])
